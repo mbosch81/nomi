@@ -1,5 +1,6 @@
 """A pinned data-only model download; no runtime executable is downloaded here."""
 from __future__ import annotations
+from dataclasses import dataclass
 import hashlib
 import os
 from pathlib import Path
@@ -13,6 +14,36 @@ MODEL_REVISION = 'bc640142c66e1fdd12af0bd68f40445458f3869b'
 MODEL_URL = f'https://huggingface.co/Qwen/Qwen3-4B-GGUF/resolve/{MODEL_REVISION}/{MODEL_FILENAME}'
 MODEL_SHA256 = '7485fe6f11af29433bc51cab58009521f205840f5b4ae3a32fa7f92e8534fdf5'
 MODEL_BYTES = 2497280256
+
+
+@dataclass(frozen=True)
+class ModelSpec:
+    key: str
+    label: str
+    filename: str
+    url: str
+    sha256: str
+    size: int
+
+
+def model_catalog() -> tuple[ModelSpec, ...]:
+    return (
+        ModelSpec('qwen', 'Qwen3 4B · Standard · 2,5 GB', MODEL_FILENAME,
+                  MODEL_URL, MODEL_SHA256, MODEL_BYTES),
+        ModelSpec('mistral', 'Mistral 7B Instruct v0.3 · 4,4 GB',
+                  'Mistral-7B-Instruct-v0.3-Q4_K_M.gguf',
+                  'https://huggingface.co/bartowski/Mistral-7B-Instruct-v0.3-GGUF/resolve/'
+                  '61fd4167fff3ab01ee1cfe0da183fa27a944db48/Mistral-7B-Instruct-v0.3-Q4_K_M.gguf',
+                  '1270d22c0fbb3d092fb725d4d96c457b7b687a5f5a715abe1e818da303e562b6',
+                  4372812000),
+    )
+
+
+def model_spec(key: str) -> ModelSpec:
+    for model in model_catalog():
+        if model.key == key:
+            return model
+    raise ValueError('Unbekanntes Download-Modell.')
 
 
 def model_directory() -> Path:
@@ -47,11 +78,17 @@ def file_digest(path: Path, cancelled=lambda: False) -> str:
 
 def download_default_model(destination: Path | None = None, cancelled=lambda: False,
                            progress=lambda message: None) -> Path:
-    destination = destination if destination is not None else default_model_path()
+    return download_model('qwen', destination, cancelled, progress)
+
+
+def download_model(key: str, destination: Path | None = None, cancelled=lambda: False,
+                   progress=lambda message: None) -> Path:
+    model = model_spec(key)
+    destination = destination if destination is not None else model_directory() / model.filename
     if destination.exists():
-        progress('Vorhandenes Standardmodell wird geprüft …')
-        if destination.stat().st_size != MODEL_BYTES or file_digest(destination, cancelled) != MODEL_SHA256:
-            raise ValueError('Die vorhandene Modelldatei stimmt nicht mit dem Standardmodell überein; sie wird nicht überschrieben.')
+        progress(f'Vorhandenes Modell wird geprüft · {model.label}')
+        if destination.stat().st_size != model.size or file_digest(destination, cancelled) != model.sha256:
+            raise ValueError('Die vorhandene Modelldatei stimmt nicht mit dem gewählten Download-Modell überein; sie wird nicht überschrieben.')
         return destination
     if cancelled():
         raise AnalysisCancelled()
@@ -63,30 +100,30 @@ def download_default_model(destination: Path | None = None, cancelled=lambda: Fa
             digest = hashlib.sha256()
             received = 0
             last_percent = -1
-            with urlopen(MODEL_URL, timeout=30) as response:
+            with urlopen(model.url, timeout=30) as response:
                 while block := response.read(1024 * 1024):
                     if cancelled():
                         raise AnalysisCancelled()
                     received += len(block)
-                    if received > MODEL_BYTES:
+                    if received > model.size:
                         raise ValueError('Unerwartete Größe der Modelldatei.')
                     handle.write(block)
                     digest.update(block)
-                    percent = min(100, received * 100 // MODEL_BYTES)
+                    percent = min(100, received * 100 // model.size)
                     if percent != last_percent:
-                        progress(f'Standardmodell herunterladen: {percent} %')
+                        progress(f'{model.label} herunterladen: {percent} %')
                         last_percent = percent
             handle.flush()
             os.fsync(handle.fileno())
         if cancelled():
             raise AnalysisCancelled()
-        if received != MODEL_BYTES or digest.hexdigest() != MODEL_SHA256:
+        if received != model.size or digest.hexdigest() != model.sha256:
             raise ValueError('Prüfsumme der Modelldatei stimmt nicht. Download wurde verworfen.')
         # Reserve atomically without overwriting a model another app downloaded.
         try:
             os.link(temporary, destination)
         except FileExistsError:
-            if file_digest(destination, cancelled) != MODEL_SHA256:
+            if file_digest(destination, cancelled) != model.sha256:
                 raise ValueError('Modelldatei wurde zwischenzeitlich belegt; nichts überschrieben.')
         return destination
     finally:

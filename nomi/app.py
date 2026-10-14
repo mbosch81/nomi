@@ -6,7 +6,7 @@ from PySide6.QtCore import Qt, QThread, Signal, QSettings, QTimer
 from PySide6.QtGui import QAction, QKeySequence
 from PySide6.QtWidgets import (QApplication, QMainWindow, QWidget, QVBoxLayout, QHBoxLayout, QLabel, QPushButton, QTableWidget, QTableWidgetItem, QHeaderView, QFileDialog, QCheckBox, QLineEdit, QComboBox, QSpinBox, QProgressBar, QMessageBox, QDialog, QDialogButtonBox, QGroupBox, QFormLayout)
 from .llama_backend import LocalEngine
-from .local_model import default_model_path, download_default_model
+from .local_model import default_model_path, download_model, model_catalog, model_directory
 from .core import Settings, OllamaBackend, collect, make_name, rename_batch, undo, validate_template, RenameError, extract_document, AnalysisCancelled, available_name, validate_name
 
 class Worker(QThread):
@@ -78,7 +78,7 @@ class EngineWorker(QThread):
 
     def run(self):
         try:
-            path = (download_default_model(cancelled=self.isInterruptionRequested, progress=self.progress.emit)
+            path = (download_model('qwen' if self.download is True else self.download, cancelled=self.isInterruptionRequested, progress=self.progress.emit)
                     if self.download else Path(self.settings.llama_model))
             backend = self.engine.start(path, self.isInterruptionRequested, self.progress.emit)
             if self.isInterruptionRequested():
@@ -186,10 +186,20 @@ class Window(QMainWindow):
         self.gguf = QLineEdit(str(self.store.value('llama_model', str(default_model_path()))))
         self.gguf.setPlaceholderText('GGUF-Modell auswählen')
         self.gguf_button = QPushButton('GGUF wählen')
-        self.download_button = QPushButton('Standardmodell herunterladen (2,5 GB)')
+        self.download_choice = QComboBox()
+        self.download_choice.setAccessibleName('Download-Modell')
+        for model in model_catalog():
+            self.download_choice.addItem(model.label, model.key)
+        for index, model in enumerate(model_catalog()):
+            if Path(self.gguf.text()).name == model.filename:
+                self.download_choice.setCurrentIndex(index)
+                break
+        self.download_button = QPushButton('Ausgewähltes Modell herunterladen / laden')
         self.local_load_button = QPushButton('Modell laden')
         self.autoload = QCheckBox('Beim Start laden')
         self.autoload.setChecked(str(self.store.value('llama_autoload', 'true')).lower() in {'true', '1'})
+        local_row.addWidget(QLabel('Verfügbare Modelle (Q4_K_M)'))
+        local_row.addWidget(self.download_choice)
         path_row = QHBoxLayout()
         path_row.addWidget(self.gguf, 1)
         path_row.addWidget(self.gguf_button)
@@ -277,15 +287,23 @@ class Window(QMainWindow):
         self.undo_button.clicked.connect(self.revert)
         self.all_button.clicked.connect(lambda: self.select_all(True))
         self.none_button.clicked.connect(lambda: self.select_all(False))
-        self.busy_widgets = [self.files_button, self.folder_button, self.recursive, self.clear_button, self.url, self.model, self.connect_button, self.timeout, self.template, self.all_button, self.none_button, self.analyze_button, self.rename_button, self.undo_button, self.ocr_enabled, self.ocr_language, self.ocr_command, self.ocr_backend, self.engine, self.gguf, self.gguf_button, self.download_button, self.local_load_button, self.autoload]
+        self.busy_widgets = [self.files_button, self.folder_button, self.recursive, self.clear_button, self.url, self.model, self.connect_button, self.timeout, self.template, self.all_button, self.none_button, self.analyze_button, self.rename_button, self.undo_button, self.ocr_enabled, self.ocr_language, self.ocr_command, self.ocr_backend, self.engine, self.gguf, self.gguf_button, self.download_button, self.local_load_button, self.autoload, self.download_choice]
 
         self.engine.currentIndexChanged.connect(self.engine_changed)
         self.gguf.textChanged.connect(self.model_path_changed)
         self.gguf_button.clicked.connect(self.choose_gguf)
-        self.download_button.clicked.connect(lambda: self.start_local_model(download=True))
+        self.download_button.clicked.connect(lambda: self.start_local_model(download=self.download_choice.currentData()))
+        self.download_choice.currentIndexChanged.connect(self.download_model_changed)
         self.local_load_button.clicked.connect(lambda: self.start_local_model())
         self.update_engine_controls()
         QTimer.singleShot(0, self.auto_load)
+
+    def download_model_changed(self):
+        selected = self.download_choice.currentData()
+        for model in model_catalog():
+            if model.key == selected:
+                self.gguf.setText(str(model_directory() / model.filename))
+                break
 
     def show_settings(self):
         self.settings_dialog.show()
@@ -341,7 +359,7 @@ class Window(QMainWindow):
         elif Path(self.gguf.text()).expanduser().is_file():
             self.start_local_model()
         else:
-            self.status.setText('Lokales Modell fehlt · GGUF auswählen oder Standardmodell herunterladen.')
+            self.status.setText('Lokales Modell fehlt · GGUF auswählen oder ein angebotenes Modell herunterladen.')
 
     def start_local_model(self, download=False):
         if self.busy():

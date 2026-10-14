@@ -79,6 +79,21 @@ class AppTests(TestCase):
         self.window.set_busy(False)
         self.assertTrue(self.window.template.isEnabled())
 
+    def test_model_catalog_selects_mistral_download_and_locks_while_busy(self):
+        self.window.autoload.setChecked(False)
+        self.window.engine.setCurrentIndex(self.window.engine.findData('llama'))
+        self.window.show_settings()
+        self.window.download_choice.setCurrentIndex(self.window.download_choice.findData('mistral'))
+        self.assertIn('Mistral-7B-Instruct-v0.3-Q4_K_M.gguf', self.window.gguf.text())
+        with patch.object(self.window, 'start_local_model') as start:
+            self.click(self.window.download_button)
+            start.assert_called_once_with(download='mistral')
+        self.window.set_busy(True)
+        self.assertFalse(self.window.download_choice.isEnabled())
+        self.window.set_busy(False)
+        self.window.download_choice.setCurrentIndex(self.window.download_choice.findData('qwen'))
+        self.assertIn('Qwen3-4B-Q4_K_M.gguf', self.window.gguf.text())
+
     def test_import_edit_select_rename_undo(self):
         with patch.object(QFileDialog, 'getOpenFileNames', return_value=([str(self.a), str(self.b)], '')):
             self.click(self.window.files_button)
