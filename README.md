@@ -126,7 +126,7 @@ Synthetische Testdaten werden nur in temporären Ordnern erzeugt. Keine produkti
 
 ## Verifizierter Entwicklungsstand (14.10.2026)
 
-- Installation in der vorhandenen `.venv` mit Python 3.14.8, PySide6 6.10.3 und pypdf 6.20.1 abgeschlossen; `pip check` erfolgreich. Alle 50 Tests bestehen; einschließlich echter Vision-OCR, optionaler Tesseract-OCR, OCR im Qt-Worker, Prozessabbruch/-timeout, verifiziertem Modelldownload, lokalem Autoload, Prozesswechsel, Datumsbelegung, Namenssuffixen und manuellen Konflikten. Plattformspezifische OCR-Integrationstests werden ohne die passenden Bibliotheken/Backends übersprungen. Die macOS-CI baut und prüft Vision ohne Tesseract-Installation; die Linux-CI prüft Tesseract.
+- Installation in der vorhandenen `.venv` mit Python 3.14.8, PySide6 6.10.3 und pypdf 6.20.1 abgeschlossen; `pip check` erfolgreich. Alle 51 Tests bestehen; einschließlich echter Vision-OCR, optionaler Tesseract-OCR, OCR im Qt-Worker, Prozessabbruch/-timeout, verifiziertem Modelldownload, lokalem Autoload, Prozesswechsel, Datumsbelegung, Namenssuffixen und manuellen Konflikten. Plattformspezifische OCR-Integrationstests werden ohne die passenden Bibliotheken/Backends übersprungen. Die macOS-CI baut und prüft Vision ohne Tesseract-Installation; die Linux-CI prüft Tesseract.
 - PySide6 ist auf `>=6.9,<6.11` begrenzt: Mit 6.12.0 trat beim Schließen nach nativer Tabellenbearbeitung ein QObject-Absturz auf. Derselbe Ablauf inklusive Schließen wurde mit 6.10.3 erfolgreich wiederholt (Exit-Code 0).
 - Core-, HTTP-Vertrags- und Qt-Tests laufen mit synthetischen Dokumenten. Sie prüfen unter anderem Konflikte, bestehende Zieldateien, doppelte Quellen, Rollback und teilweise fehlgeschlagene Rückabwicklungen, veränderte Dateien, Import, Auswahl, Analyse, Modellladen und Abbruch.
 - Die macOS-Oberfläche wurde gestartet und visuell geprüft; nativer Dateiimport, manuelles Bearbeiten, Umbenennen und Rückgängig wurden am Testdokument bedient und überprüft. Drag-and-drop wird zusätzlich über Qt-Ereignisse getestet.
@@ -139,7 +139,7 @@ Synthetische Testdaten werden nur in temporären Ordnern erzeugt. Keine produkti
 
 MIT — siehe [LICENSE](LICENSE). Die Lizenz gilt für Nomi; Abhängigkeiten und verwendete Modelle haben eigene Lizenzbedingungen.
 
-## macOS-App bauen (Version 0.4.0)
+## macOS-App bauen (Version 0.4.1)
 
 ```sh
 .venv/bin/python -m pip install -e '.[ocr,build]'
@@ -175,3 +175,7 @@ dist/Nomi.app/Contents/MacOS/Nomi --llama-self-test
 ```
 
 Lokal mit dem echten Standardmodell und fertigem Bundle geprüft: automatisches Laden, Apple-Vision-OCR, strukturierte lokale Generierung, Umbenennen, Rückgängig und Beenden des eigenen Servers. Gemessene Beispielzeiten: Modellstart 1,2–6,8 s je nach Cachezustand, OCR plus Generierung etwa 2,7–27,2 s für den kurzen synthetischen Scan. Insbesondere die Initialisierung nativer OCR-Frameworks kann beim ersten Aufruf länger dauern; die Oberfläche bleibt dabei bedienbar. Das ist keine allgemeine Leistungsgarantie. Die CI verwendet für Modell-Lebenszyklus und API-Tests einen synthetischen Kindprozess und lädt keine mehrgigabytegroßen Gewichte.
+
+### Einstellungen
+
+Backend, Modell, Namensschema, Zeitlimit und OCR werden über **Einstellungen → Einstellungen …** konfiguriert. Auf macOS liegt der Eintrag im Nomi-App-Menü und ist mit **⌘,** erreichbar. Änderungen gelten direkt und werden beim Schließen des Einstellungsfensters gespeichert. Während laufender Analyse oder Modellinitialisierung sind die betroffenen Felder gesperrt. Im Hauptfenster bleiben Import, Dateiliste, Analyse und Umbenennung.

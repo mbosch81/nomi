@@ -54,6 +54,31 @@ class AppTests(TestCase):
             time.sleep(.01)  # Release the GIL while the worker imports/runs PDF libraries.
         self.assertFalse(self.window.busy())
 
+    def test_settings_menu_moves_controls_and_persists_changes(self):
+        self.assertFalse(self.window.settings_dialog.isVisible())
+        for widget in (self.window.engine, self.window.url, self.window.model,
+                       self.window.template, self.window.ocr_enabled, self.window.timeout):
+            self.assertTrue(self.window.settings_dialog.isAncestorOf(widget))
+            self.assertFalse(widget.isVisible())
+        self.assertTrue(self.window.table.isVisible())
+        self.window.settings_action.trigger()
+        self.app.processEvents()
+        self.assertTrue(self.window.settings_dialog.isVisible())
+        self.assertTrue(self.window.template.isVisible())
+        self.window.template.setText('{absender}_{titel}')
+        self.window.timeout.setValue(90)
+        self.window.settings_dialog.close()
+        self.app.processEvents()
+        self.assertEqual(self.store.value('template'), '{absender}_{titel}')
+        self.assertEqual(int(self.store.value('timeout')), 90)
+        self.window.settings_action.trigger()
+        self.app.processEvents()
+        self.assertEqual(self.window.template.text(), '{absender}_{titel}')
+        self.window.set_busy(True)
+        self.assertFalse(self.window.template.isEnabled())
+        self.window.set_busy(False)
+        self.assertTrue(self.window.template.isEnabled())
+
     def test_import_edit_select_rename_undo(self):
         with patch.object(QFileDialog, 'getOpenFileNames', return_value=([str(self.a), str(self.b)], '')):
             self.click(self.window.files_button)
