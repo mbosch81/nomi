@@ -1,0 +1,384 @@
+from __future__ import annotations
+import sys
+from pathlib import Path
+from dataclasses import asdict
+from PySide6.QtCore import Qt, QThread, Signal, QSettings
+from PySide6.QtWidgets import (QApplication, QMainWindow, QWidget, QVBoxLayout, QHBoxLayout, QLabel, QPushButton, QTableWidget, QTableWidgetItem, QHeaderView, QFileDialog, QCheckBox, QLineEdit, QComboBox, QSpinBox, QProgressBar, QMessageBox)
+from .core import Settings, OllamaBackend, collect, extract, make_name, rename_batch, undo, validate_template, RenameError
+
+class Worker(QThread):
+    result = Signal(int, str, str)
+    models_ready = Signal(list)
+    problem = Signal(str)
+    def __init__(self, settings, items=None):
+        super().__init__()
+        self.settings, self.items = settings, items
+        self.cancelled = False
+    def requestInterruption(self):
+        self.cancelled = True
+        super().requestInterruption()
+
+    def run(self):
+        backend = OllamaBackend()
+        if self.items is None:
+            try:
+                self.models_ready.emit(backend.models(self.settings))
+            except Exception as error:
+                self.problem.emit(str(error))
+            return
+        for row, path in self.items:
+            if self.isInterruptionRequested():
+                break
+            try:
+                name = make_name(backend.suggest(extract(path), self.settings), path, self.settings.template)
+                if name == path.name:
+                    status = 'Unverändert'
+                elif path.with_name(name).exists():
+                    status = 'Namenskonflikt — bitte bearbeiten'
+                else:
+                    status = 'Bereit'
+                self.result.emit(row, name, status)
+            except Exception as error:
+                self.result.emit(row, '', 'Fehler: ' + str(error))
+
+class Window(QMainWindow):
+    def __init__(self):
+        super().__init__()
+        self.setWindowTitle('Nomi · Jede Datei verdient einen Namen')
+        self.resize(1100, 720)
+        self.setAcceptDrops(True)
+        self.paths = []
+        self.worker = None
+        self.history = []
+        self.store = QSettings('Nomi', 'Nomi')
+        root = QWidget()
+        self.setCentralWidget(root)
+        layout = QVBoxLayout(root)
+        layout.setContentsMargins(28, 24, 28, 24)
+        layout.setSpacing(14)
+        title = QLabel('Nomi')
+        title.setStyleSheet('font-size: 34px; font-weight: 700; color: #a6b5ff;')
+        layout.addWidget(title)
+        layout.addWidget(QLabel('Jede Datei verdient einen Namen.'))
+        self.drop_hint = QLabel('Dateien oder Ordner hierher ziehen · PDF, TXT, Markdown und CSV')
+        self.drop_hint.setStyleSheet('border: 2px dashed #55618a; border-radius: 12px; padding: 22px; color: #bec8e5;')
+        self.drop_hint.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        layout.addWidget(self.drop_hint)
+        import_row = QHBoxLayout()
+        self.files_button = QPushButton('Dateien hinzufügen')
+        self.folder_button = QPushButton('Ordner auswählen')
+        self.recursive = QCheckBox('Unterordner einbeziehen')
+        self.clear_button = QPushButton('Liste leeren')
+        for widget in (self.files_button, self.folder_button, self.recursive, self.clear_button):
+            import_row.addWidget(widget)
+        import_row.addStretch()
+        layout.addLayout(import_row)
+        backend_row = QHBoxLayout()
+        backend_row.addWidget(QLabel('Ollama'))
+        self.url = QLineEdit(str(self.store.value('url', 'http://localhost:11434')))
+        self.url.setPlaceholderText('http://server:port')
+        self.model = QComboBox()
+        self.model.setEditable(True)
+        self.model.setMinimumWidth(160)
+        self.model.setCurrentText(str(self.store.value('model', '')))
+        self.model.setPlaceholderText('Modellname')
+        self.connect_button = QPushButton('Modelle laden')
+        self.timeout = QSpinBox()
+        self.timeout.setRange(10, 600)
+        self.timeout.setValue(int(self.store.value('timeout', 120)))
+        self.timeout.setSuffix(' s')
+        for widget in (self.url, self.model, self.connect_button, self.timeout):
+            backend_row.addWidget(widget)
+        layout.addLayout(backend_row)
+        schema_row = QHBoxLayout()
+        schema_row.addWidget(QLabel('Namensschema'))
+        self.template = QLineEdit(str(self.store.value('template', '{datum}_{absender}_{dokumenttyp}')))
+        self.template.setToolTip('Verfügbare Felder: {datum}, {absender}, {dokumenttyp}, {titel}')
+        schema_row.addWidget(self.template)
+        layout.addLayout(schema_row)
+        note = QLabel('Die Analyse sendet bis zu 16.000 Zeichen je Datei an die eingestellte Adresse. PDFs: maximal 20 Seiten.\nEin vorgeschalteter Router kann Inhalte an Cloud-Anbieter weiterleiten. Umbenennung erfolgt erst nach deinem Klick.')
+        note.setWordWrap(True)
+        note.setStyleSheet('color: #aeb9d2; font-size: 11px;')
+        layout.addWidget(note)
+        self.table = QTableWidget(0, 4)
+        self.table.setHorizontalHeaderLabels(['Verwenden', 'Originalname', 'Neuer Name · editierbar', 'Status'])
+        self.table.horizontalHeader().setSectionResizeMode(0, QHeaderView.ResizeMode.ResizeToContents)
+        for col in (1, 2, 3):
+            self.table.horizontalHeader().setSectionResizeMode(col, QHeaderView.ResizeMode.Stretch)
+        self.table.setAlternatingRowColors(True)
+        self.table.itemChanged.connect(self.changed)
+        layout.addWidget(self.table, 1)
+        actions = QHBoxLayout()
+        self.all_button = QPushButton('Alle auswählen')
+        self.none_button = QPushButton('Alle abwählen')
+        self.analyze_button = QPushButton('Auswahl analysieren')
+        self.cancel_button = QPushButton('Abbrechen')
+        self.cancel_button.setEnabled(False)
+        self.rename_button = QPushButton('Auswahl umbenennen')
+        self.rename_button.setStyleSheet('background: #6677dd; color: white; font-weight: 600;')
+        self.undo_button = QPushButton('Rückgängig')
+        self.undo_button.setEnabled(False)
+        for widget in (self.all_button, self.none_button, self.analyze_button, self.cancel_button, self.rename_button, self.undo_button):
+            actions.addWidget(widget)
+        layout.addLayout(actions)
+        self.progress = QProgressBar()
+        self.progress.setValue(0)
+        layout.addWidget(self.progress)
+        self.status = QLabel('Bereit · Einstellungen werden automatisch gespeichert.')
+        layout.addWidget(self.status)
+        self.files_button.clicked.connect(self.choose_files)
+        self.folder_button.clicked.connect(self.choose_folder)
+        self.clear_button.clicked.connect(self.clear)
+        self.connect_button.clicked.connect(self.load_models)
+        self.analyze_button.clicked.connect(self.analyze)
+        self.cancel_button.clicked.connect(self.cancel)
+        self.rename_button.clicked.connect(self.rename)
+        self.undo_button.clicked.connect(self.revert)
+        self.all_button.clicked.connect(lambda: self.select_all(True))
+        self.none_button.clicked.connect(lambda: self.select_all(False))
+        self.busy_widgets = [self.files_button, self.folder_button, self.recursive, self.clear_button, self.url, self.model, self.connect_button, self.timeout, self.template, self.all_button, self.none_button, self.analyze_button, self.rename_button, self.undo_button]
+
+    def settings(self):
+        settings = Settings(self.url.text().strip(), self.model.currentText().strip(), self.template.text().strip(), self.timeout.value())
+        for key, value in asdict(settings).items():
+            self.store.setValue(key, value)
+        return settings
+
+    def busy(self):
+        return self.worker is not None
+
+    def set_busy(self, value):
+        for widget in self.busy_widgets:
+            widget.setEnabled(not value)
+        self.undo_button.setEnabled(not value and bool(self.history))
+        self.table.setEnabled(not value)
+        self.cancel_button.setEnabled(value)
+
+    def dragEnterEvent(self, event):
+        if not self.busy() and event.mimeData().hasUrls() and any(u.isLocalFile() for u in event.mimeData().urls()):
+            event.acceptProposedAction()
+
+    def dropEvent(self, event):
+        if not self.busy():
+            self.add([Path(u.toLocalFile()) for u in event.mimeData().urls() if u.isLocalFile()])
+            event.acceptProposedAction()
+
+    def choose_files(self):
+        files, _ = QFileDialog.getOpenFileNames(self, 'Dateien hinzufügen', '', 'Dokumente (*.pdf *.txt *.md *.csv)')
+        self.add([Path(f) for f in files])
+
+    def choose_folder(self):
+        folder = QFileDialog.getExistingDirectory(self, 'Ordner auswählen')
+        if folder:
+            self.add([Path(folder)])
+
+    def add(self, incoming):
+        try:
+            files = collect(incoming, self.recursive.isChecked())
+        except OSError as error:
+            self.error(str(error))
+            return
+        self.table.blockSignals(True)
+        for path in files:
+            if path in self.paths:
+                continue
+            row = len(self.paths)
+            self.paths.append(path)
+            self.table.insertRow(row)
+            check = QTableWidgetItem('')
+            check.setFlags(Qt.ItemFlag.ItemIsEnabled | Qt.ItemFlag.ItemIsUserCheckable)
+            check.setCheckState(Qt.CheckState.Checked)
+            self.table.setItem(row, 0, check)
+            for col, text in ((1, path.name), (2, ''), (3, 'Noch nicht analysiert')):
+                item = QTableWidgetItem(text)
+                if col != 2:
+                    item.setFlags(Qt.ItemFlag.ItemIsEnabled | Qt.ItemFlag.ItemIsSelectable)
+                item.setToolTip(str(path))
+                self.table.setItem(row, col, item)
+        self.table.blockSignals(False)
+        self.status.setText(f'{len(self.paths)} Dateien · Keine Dateien wurden verändert.')
+
+    def clear(self):
+        self.paths.clear()
+        self.table.setRowCount(0)
+        self.status.setText('Liste geleert. Die Dateien bleiben erhalten.')
+
+    def select_all(self, selected):
+        for row in range(len(self.paths)):
+            self.table.item(row, 0).setCheckState(Qt.CheckState.Checked if selected else Qt.CheckState.Unchecked)
+
+    def selected(self):
+        return [(row, path) for row, path in enumerate(self.paths) if self.table.item(row, 0).checkState() == Qt.CheckState.Checked]
+
+    def changed(self, item):
+        if item.column() == 2:
+            self.table.item(item.row(), 3).setText('Manuell bearbeitet — wird beim Umbenennen geprüft')
+
+    def start(self, worker):
+        if self.busy():
+            worker.deleteLater()
+            return
+        self.worker = worker
+        worker.problem.connect(self.error)
+        worker.finished.connect(self.finished)
+        self.set_busy(True)
+        worker.start()
+
+    def load_models(self):
+        self.progress.setRange(0, 0)
+        self.status.setText('Verbindung zu Ollama wird geprüft …')
+        worker = Worker(self.settings())
+        worker.models_ready.connect(self.models_loaded)
+        self.start(worker)
+
+    def models_loaded(self, names):
+        current = self.model.currentText()
+        self.model.clear()
+        self.model.addItems(names)
+        if current:
+            self.model.setCurrentText(current)
+        elif names:
+            self.model.setCurrentIndex(0)
+        self.status.setText(f'{len(names)} Modelle gefunden.' if names else 'Verbindung erfolgreich, aber keine Modelle gefunden.')
+
+    def analyze(self):
+        items = self.selected()
+        if not items:
+            self.error('Bitte mindestens eine Datei auswählen.')
+            return
+        settings = self.settings()
+        try:
+            validate_template(settings.template)
+            if not settings.model:
+                raise ValueError('Bitte zuerst ein Modell auswählen oder eingeben.')
+        except ValueError as error:
+            self.error(str(error))
+            return
+        self.progress.setRange(0, len(items))
+        self.progress.setValue(0)
+        for row, _ in items:
+            self.table.item(row, 3).setText('Wartet auf Analyse …')
+        self.status.setText('Analysiert ausgewählte Dateien nacheinander …')
+        worker = Worker(settings, items)
+        worker.result.connect(self.result)
+        self.start(worker)
+
+    def result(self, row, name, status):
+        self.table.blockSignals(True)
+        self.table.item(row, 2).setText(name)
+        self.table.item(row, 3).setText(status)
+        self.table.blockSignals(False)
+        self.progress.setValue(self.progress.value() + 1)
+
+    def cancel(self):
+        if self.worker:
+            self.worker.requestInterruption()
+            self.status.setText('Abbruch vorgemerkt — laufende Anfrage endet spätestens nach dem Timeout.')
+            self.cancel_button.setEnabled(False)
+
+    def finished(self):
+        interrupted = self.worker.cancelled
+        if self.worker.items is not None:
+            for row, _ in self.worker.items:
+                if self.table.item(row, 3).text() == 'Wartet auf Analyse …':
+                    self.table.item(row, 3).setText('Nicht analysiert · abgebrochen')
+            self.status.setText('Analyse abgebrochen.' if interrupted else 'Analyse beendet · Vorschläge prüfen und gewünschte Dateien umbenennen.')
+        self.set_busy(False)
+        if self.progress.maximum() == 0:
+            self.progress.setRange(0, 1)
+            self.progress.setValue(1)
+        self.worker.deleteLater()
+        self.worker = None
+
+    def rename(self):
+        selected = self.selected()
+        if not selected:
+            self.error('Bitte mindestens eine Datei auswählen.')
+            return
+        items = [(path, self.table.item(row, 2).text()) for row, path in selected]
+        if any(not name for _, name in items):
+            self.error('Für jede ausgewählte Datei muss ein neuer Name vorliegen. Dateien ohne Vorschlag bitte abwählen.')
+            return
+        failure = None
+        try:
+            records = rename_batch(items)
+        except RenameError as error:
+            failure = str(error)
+            records = error.records
+            self.error(str(error))
+        except Exception as error:
+            self.error(str(error))
+            return
+        if records:
+            self.history.append(records)
+        mapping = {r.before: r.after for r in records}
+        for row, path in selected:
+            self.paths[row] = mapping.get(path, path)
+            self.table.item(row, 1).setText(self.paths[row].name)
+            self.table.item(row, 1).setToolTip(str(self.paths[row]))
+            self.table.item(row, 3).setText('Umbenannt' if path in mapping else 'Unverändert')
+        self.undo_button.setEnabled(bool(self.history))
+        self.status.setText(('Aktion fehlgeschlagen · ' + failure) if failure else f'{len(records)} Dateien umbenannt · Rückgängig ist in dieser Sitzung möglich.')
+
+    def revert(self):
+        if not self.history:
+            return
+        records = self.history[-1]
+        failure = None
+        try:
+            undo(records)
+        except RenameError as error:
+            failure = str(error)
+            self.error(str(error))
+            remaining = error.records
+            self.history[-1] = remaining
+            records = [r for r in records if r not in remaining]
+            if not remaining:
+                self.history.pop()
+        except Exception as error:
+            self.error(str(error))
+            return
+        else:
+            self.history.pop()
+        mapping = {r.after: r.before for r in records}
+        for row, path in enumerate(self.paths):
+            if path in mapping:
+                self.paths[row] = mapping[path]
+                self.table.item(row, 1).setText(mapping[path].name)
+                self.table.item(row, 1).setToolTip(str(mapping[path]))
+                self.table.item(row, 3).setText('Umbenennung rückgängig gemacht')
+        self.undo_button.setEnabled(bool(self.history))
+        self.status.setText(('Rückgängig unvollständig · ' + failure) if failure else f'{len(records)} Umbenennungen rückgängig gemacht.')
+
+    def error(self, message):
+        self.status.setText('Aktion fehlgeschlagen.')
+        QMessageBox.warning(self, 'Nomi', message)
+
+    def closeEvent(self, event):
+        if self.busy():
+            self.cancel()
+            QMessageBox.information(self, 'Analyse läuft', 'Bitte warte, bis die laufende Anfrage beendet ist. Danach lässt sich Nomi schließen.')
+            event.ignore()
+        else:
+            self.settings()
+            event.accept()
+
+STYLE = '''
+QWidget { background: #171c2b; color: #e8edf9; font-size: 13px; }
+QLineEdit, QComboBox, QSpinBox { background: #222b40; border: 1px solid #46516c; border-radius: 6px; padding: 7px; }
+QPushButton { background: #2d3852; border: 1px solid #455372; border-radius: 6px; padding: 9px 12px; }
+QPushButton:hover { background: #3e4c70; }
+QPushButton:disabled { color: #78829a; background: #22283a; }
+QTableWidget { background: #1d2436; alternate-background-color: #232c40; gridline-color: #35415a; border: 1px solid #35415a; }
+QHeaderView::section { background: #2b3550; padding: 10px; border: none; }
+QProgressBar { border: 1px solid #35415a; border-radius: 5px; text-align: center; }
+QProgressBar::chunk { background: #6677dd; }
+'''
+
+def main():
+    app = QApplication(sys.argv)
+    app.setStyle('Fusion')
+    app.setStyleSheet(STYLE)
+    window = Window()
+    window.show()
+    sys.exit(app.exec())
