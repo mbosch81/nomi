@@ -25,6 +25,7 @@ class AppTests(TestCase):
         self.temp = TemporaryDirectory()
         self.root = Path(self.temp.name)
         self.store = QSettings(str(self.root / 'settings.ini'), QSettings.Format.IniFormat)
+        self.store.setValue('engine', 'ollama')
         self.patcher = patch('nomi.app.QSettings', return_value=self.store)
         self.patcher.start()
         self.window = Window()
@@ -46,8 +47,8 @@ class AppTests(TestCase):
         QTest.mouseClick(widget, Qt.MouseButton.LeftButton)
         self.app.processEvents()
 
-    def wait_idle(self):
-        deadline = time.monotonic() + 5
+    def wait_idle(self, timeout=5):
+        deadline = time.monotonic() + timeout
         while self.window.busy() and time.monotonic() < deadline:
             self.app.processEvents()
             time.sleep(.01)  # Release the GIL while the worker imports/runs PDF libraries.
@@ -171,8 +172,8 @@ class AppTests(TestCase):
             with patch('nomi.app.OllamaBackend.suggest', return_value={'dokumenttyp': 'Rechnung'}):
                 self.click(self.window.analyze_button)
                 self.wait_idle()
-        self.assertEqual(extract_document.call_args.kwargs['settings'], settings.__class__(
-            settings.url, 'synthetic-model', settings.template, settings.timeout, True, 'eng', '/custom/tesseract'))
+        from dataclasses import replace
+        self.assertEqual(extract_document.call_args.kwargs['settings'], replace(settings, model='synthetic-model'))
         self.assertIn('OCR', self.window.table.item(0, 3).text())
         self.assertIn('Textausschnitt', self.window.table.item(0, 3).text())
 
@@ -192,7 +193,7 @@ class AppTests(TestCase):
         self.window.model.setCurrentText('synthetic-model')
         with patch('nomi.app.OllamaBackend.suggest', return_value={'dokumenttyp': 'Rechnung'}) as suggest:
             self.click(self.window.analyze_button)
-            self.wait_idle()
+            self.wait_idle(timeout=45)  # Native framework cold-start can exceed five seconds.
         self.assertIn('Beispiel', suggest.call_args.args[0])
         self.assertIn('OCR', self.window.table.item(0, 3).text())
         self.assertEqual(self.window.table.item(0, 2).text(), 'Rechnung.pdf')
@@ -208,3 +209,78 @@ class AppTests(TestCase):
         self.window.ocr_backend.setCurrentIndex(self.window.ocr_backend.findData('vision'))
         self.assertTrue(self.window.ocr_command.isHidden())
         self.assertEqual(self.window.settings().ocr_backend, 'vision')
+
+    def test_missing_local_model_keeps_analysis_disabled(self):
+        self.window.autoload.setChecked(False)
+        self.window.engine.setCurrentIndex(self.window.engine.findData('llama'))
+        self.window.gguf.setText(str(self.root/'missing.gguf'))
+        self.app.processEvents()
+        self.assertFalse(self.window.busy())
+        self.assertFalse(self.window.analyze_button.isEnabled())
+        self.assertFalse(self.window.gguf.isHidden())
+        self.assertTrue(self.window.url.isHidden())
+        self.assertEqual(self.window.settings().engine, 'llama')
+
+    def test_local_auto_load_runs_in_background_and_routes_analysis(self):
+        from PySide6.QtCore import QTimer
+        self.window.close()
+        model=self.root/'test.gguf';model.write_bytes(b'GGUFtest')
+        self.store.setValue('engine','llama');self.store.setValue('llama_model',str(model))
+        began=threading.Event();release=threading.Event()
+        class Backend:
+            def suggest(self,text,settings):
+                return {'absender':'Beispiel GmbH','dokumenttyp':'Rechnung'}
+        class Engine:
+            model=None
+            running=False
+            def start(self,path,cancelled,progress):
+                began.set()
+                while not release.wait(.01):
+                    if cancelled():
+                        from nomi.core import AnalysisCancelled
+                        raise AnalysisCancelled()
+                self.model=path;self.running=True;return Backend()
+            def alive(self):return self.running
+            def stop(self):self.running=False;self.model=None
+        engine=Engine()
+        with patch('nomi.app.LocalEngine',return_value=engine):
+            self.window=Window()
+        self.window.show()
+        deadline=time.monotonic()+3
+        while not began.is_set() and time.monotonic()<deadline:
+            self.app.processEvents();time.sleep(.01)
+        self.assertTrue(began.is_set())
+        ticks=[];timer=QTimer();timer.timeout.connect(lambda:ticks.append(1));timer.start(10)
+        until=time.monotonic()+.1
+        while time.monotonic()<until:self.app.processEvents();time.sleep(.01)
+        timer.stop()
+        self.assertGreater(len(ticks),2)
+        self.assertFalse(self.window.analyze_button.isEnabled())
+        release.set();self.wait_idle()
+        self.assertTrue(self.window.analyze_button.isEnabled())
+        self.window.add([self.a]);self.click(self.window.analyze_button);self.wait_idle()
+        self.assertEqual(self.window.table.item(0,2).text(),'Beispiel_GmbH_Rechnung.txt')
+        self.window.close()
+        self.assertFalse(engine.running)
+
+    def test_close_during_local_start_cancels_without_blocking(self):
+        from nomi.core import AnalysisCancelled
+        self.window.close()
+        model=self.root/'test.gguf';model.write_bytes(b'GGUFtest')
+        self.store.setValue('engine','llama');self.store.setValue('llama_model',str(model))
+        began=threading.Event()
+        class Engine:
+            model=None
+            def start(self,path,cancelled,progress):
+                began.set()
+                while not cancelled():time.sleep(.01)
+                raise AnalysisCancelled()
+            def alive(self):return False
+            def stop(self):pass
+        with patch('nomi.app.LocalEngine',return_value=Engine()):self.window=Window()
+        self.window.show()
+        deadline=time.monotonic()+3
+        while not began.is_set() and time.monotonic()<deadline:self.app.processEvents();time.sleep(.01)
+        self.assertTrue(began.is_set())
+        self.window.close();self.wait_idle();self.app.processEvents()
+        self.assertFalse(self.window.isVisible())

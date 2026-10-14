@@ -58,7 +58,9 @@ jobs:
         env:
           PATH: /usr/bin:/bin:/usr/sbin:/sbin
           QT_QPA_PLATFORM: offscreen
-        run: dist/Nomi.app/Contents/MacOS/Nomi --self-test
+        run: |
+          dist/Nomi.app/Contents/MacOS/Nomi --runtime-check
+          dist/Nomi.app/Contents/MacOS/Nomi --self-test
       - name: Archive application bundle preserving symlinks
         run: ditto -c -k --sequesterRsrc --keepParent dist/Nomi.app dist/Nomi-macos.zip
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4

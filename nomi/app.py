@@ -2,24 +2,27 @@ from __future__ import annotations
 import sys
 from pathlib import Path
 from dataclasses import asdict
-from PySide6.QtCore import Qt, QThread, Signal, QSettings
+from PySide6.QtCore import Qt, QThread, Signal, QSettings, QTimer
 from PySide6.QtWidgets import (QApplication, QMainWindow, QWidget, QVBoxLayout, QHBoxLayout, QLabel, QPushButton, QTableWidget, QTableWidgetItem, QHeaderView, QFileDialog, QCheckBox, QLineEdit, QComboBox, QSpinBox, QProgressBar, QMessageBox)
+from .llama_backend import LocalEngine
+from .local_model import default_model_path, download_default_model
 from .core import Settings, OllamaBackend, collect, make_name, rename_batch, undo, validate_template, RenameError, extract_document, AnalysisCancelled, available_name, validate_name
 
 class Worker(QThread):
     result = Signal(int, str, str)
     models_ready = Signal(list)
     problem = Signal(str)
-    def __init__(self, settings, items=None):
+    def __init__(self, settings, items=None, backend=None):
         super().__init__()
         self.settings, self.items = settings, items
         self.cancelled = False
+        self.backend = backend
     def requestInterruption(self):
         self.cancelled = True
         super().requestInterruption()
 
     def run(self):
-        backend = OllamaBackend()
+        backend = self.backend if self.backend is not None else OllamaBackend()
         if self.items is None:
             try:
                 self.models_ready.emit(backend.models(self.settings))
@@ -57,6 +60,39 @@ class Worker(QThread):
             except Exception as error:
                 self.result.emit(row, '', 'Fehler: ' + str(error))
 
+class EngineWorker(QThread):
+    progress = Signal(str)
+    ready = Signal(object, str)
+    problem = Signal(str)
+
+    def __init__(self, engine, settings, download=False):
+        super().__init__()
+        self.engine, self.settings, self.download = engine, settings, download
+        self.items = None
+        self.cancelled = False
+
+    def requestInterruption(self):
+        self.cancelled = True
+        super().requestInterruption()
+
+    def run(self):
+        try:
+            path = (download_default_model(cancelled=self.isInterruptionRequested, progress=self.progress.emit)
+                    if self.download else Path(self.settings.llama_model))
+            backend = self.engine.start(path, self.isInterruptionRequested, self.progress.emit)
+            if self.isInterruptionRequested():
+                raise AnalysisCancelled()
+            self.ready.emit(backend, str(path))
+        except AnalysisCancelled:
+            self.cancelled = True
+        except Exception as error:
+            self.engine.stop()
+            if not self.isInterruptionRequested():
+                self.problem.emit(str(error))
+        finally:
+            if self.cancelled:
+                self.engine.stop()
+
 class Window(QMainWindow):
     def __init__(self, store=None):
         super().__init__()
@@ -66,6 +102,9 @@ class Window(QMainWindow):
         self.paths = []
         self.worker = None
         self.history = []
+        self.local_engine = LocalEngine()
+        self._local_backend = None
+        self._close_pending = False
         self.store = store if store is not None else QSettings('Nomi', 'Nomi')
         root = QWidget()
         self.setCentralWidget(root)
@@ -90,7 +129,12 @@ class Window(QMainWindow):
         import_row.addStretch()
         layout.addLayout(import_row)
         backend_row = QHBoxLayout()
-        backend_row.addWidget(QLabel('Ollama'))
+        self.engine = QComboBox()
+        self.engine.addItem('Lokal · llama.cpp', 'llama')
+        self.engine.addItem('Ollama · Server', 'ollama')
+        selected_engine = str(self.store.value('engine', 'llama'))
+        self.engine.setCurrentIndex(max(0, self.engine.findData(selected_engine)))
+        backend_row.addWidget(self.engine)
         self.url = QLineEdit(str(self.store.value('url', 'http://localhost:11434')))
         self.url.setPlaceholderText('http://server:port')
         self.model = QComboBox()
@@ -106,6 +150,17 @@ class Window(QMainWindow):
         for widget in (self.url, self.model, self.connect_button, self.timeout):
             backend_row.addWidget(widget)
         layout.addLayout(backend_row)
+        local_row = QHBoxLayout()
+        self.gguf = QLineEdit(str(self.store.value('llama_model', str(default_model_path()))))
+        self.gguf.setPlaceholderText('GGUF-Modell auswählen')
+        self.gguf_button = QPushButton('GGUF wählen')
+        self.download_button = QPushButton('Standardmodell herunterladen (2,5 GB)')
+        self.local_load_button = QPushButton('Modell laden')
+        self.autoload = QCheckBox('Beim Start laden')
+        self.autoload.setChecked(str(self.store.value('llama_autoload', 'true')).lower() in {'true', '1'})
+        for widget in (self.gguf, self.gguf_button, self.download_button, self.local_load_button, self.autoload):
+            local_row.addWidget(widget)
+        layout.addLayout(local_row)
         schema_row = QHBoxLayout()
         schema_row.addWidget(QLabel('Namensschema'))
         self.template = QLineEdit(str(self.store.value('template', '{datum}_{absender}_{dokumenttyp}')))
@@ -132,10 +187,10 @@ class Window(QMainWindow):
         layout.addLayout(ocr_row)
         self.ocr_backend.currentIndexChanged.connect(self.update_ocr_controls)
         self.update_ocr_controls()
-        note = QLabel('Die Analyse sendet bis zu 16.000 Zeichen je Datei an die eingestellte Adresse. PDFs: maximal 20 Seiten.\nEin vorgeschalteter Router kann Inhalte an Cloud-Anbieter weiterleiten. Umbenennung erfolgt erst nach deinem Klick.')
-        note.setWordWrap(True)
-        note.setStyleSheet('color: #aeb9d2; font-size: 11px;')
-        layout.addWidget(note)
+        self.privacy_note = QLabel('Die Analyse sendet bis zu 16.000 Zeichen je Datei an die eingestellte Adresse. PDFs: maximal 20 Seiten.\nEin vorgeschalteter Router kann Inhalte an Cloud-Anbieter weiterleiten. Umbenennung erfolgt erst nach deinem Klick.')
+        self.privacy_note.setWordWrap(True)
+        self.privacy_note.setStyleSheet('color: #aeb9d2; font-size: 11px;')
+        layout.addWidget(self.privacy_note)
         self.table = QTableWidget(0, 4)
         self.table.setHorizontalHeaderLabels(['Verwenden', 'Originalname', 'Neuer Name · editierbar', 'Status'])
         self.table.horizontalHeader().setSectionResizeMode(0, QHeaderView.ResizeMode.ResizeToContents)
@@ -172,7 +227,80 @@ class Window(QMainWindow):
         self.undo_button.clicked.connect(self.revert)
         self.all_button.clicked.connect(lambda: self.select_all(True))
         self.none_button.clicked.connect(lambda: self.select_all(False))
-        self.busy_widgets = [self.files_button, self.folder_button, self.recursive, self.clear_button, self.url, self.model, self.connect_button, self.timeout, self.template, self.all_button, self.none_button, self.analyze_button, self.rename_button, self.undo_button, self.ocr_enabled, self.ocr_language, self.ocr_command, self.ocr_backend]
+        self.busy_widgets = [self.files_button, self.folder_button, self.recursive, self.clear_button, self.url, self.model, self.connect_button, self.timeout, self.template, self.all_button, self.none_button, self.analyze_button, self.rename_button, self.undo_button, self.ocr_enabled, self.ocr_language, self.ocr_command, self.ocr_backend, self.engine, self.gguf, self.gguf_button, self.download_button, self.local_load_button, self.autoload]
+
+        self.engine.currentIndexChanged.connect(self.engine_changed)
+        self.gguf.textChanged.connect(self.model_path_changed)
+        self.gguf_button.clicked.connect(self.choose_gguf)
+        self.download_button.clicked.connect(lambda: self.start_local_model(download=True))
+        self.local_load_button.clicked.connect(lambda: self.start_local_model())
+        self.update_engine_controls()
+        QTimer.singleShot(0, self.auto_load)
+
+    def update_engine_controls(self):
+        local = self.engine.currentData() == 'llama'
+        for widget in (self.url, self.model, self.connect_button):
+            widget.setVisible(not local)
+        for widget in (self.gguf, self.gguf_button, self.download_button, self.local_load_button, self.autoload):
+            widget.setVisible(local)
+        self.privacy_note.setText(
+            'Analyse vollständig auf diesem Mac über llama.cpp. Bis zu 16.000 Zeichen je Datei, PDFs maximal 20 Seiten. '
+            'Beim erstmaligen Modelldownload wird Hugging Face kontaktiert. Umbenennung erst nach deinem Klick.'
+            if local else 'Die Analyse sendet bis zu 16.000 Zeichen je Datei an die eingestellte Ollama-Adresse. PDFs: maximal 20 Seiten. '
+            'Ein vorgeschalteter Router kann Inhalte an Cloud-Anbieter weiterleiten. Umbenennung erst nach deinem Klick.')
+        self.refresh_analysis_enabled()
+
+    def refresh_analysis_enabled(self):
+        ready = self.engine.currentData() != 'llama' or (self._local_backend is not None and self.local_engine.alive())
+        self.analyze_button.setEnabled(not self.busy() and ready)
+
+    def engine_changed(self):
+        if self.engine.currentData() != 'llama':
+            self.local_engine.stop()
+            self._local_backend = None
+            self.status.setText('Ollama · Modell wählen oder Modelle laden.')
+        self.update_engine_controls()
+        if self.engine.currentData() == 'llama':
+            QTimer.singleShot(0, self.auto_load)
+
+    def model_path_changed(self):
+        if self.local_engine.model != Path(self.gguf.text()).expanduser().absolute():
+            self._local_backend = None
+            if self.engine.currentData() == 'llama':
+                self.status.setText('Modellauswahl geändert · Modell laden anklicken.')
+        self.refresh_analysis_enabled()
+
+    def choose_gguf(self):
+        path, _ = QFileDialog.getOpenFileName(self, 'Lokales Modell auswählen', '', 'GGUF-Modelle (*.gguf)')
+        if path:
+            self.gguf.setText(path)
+
+    def auto_load(self):
+        if self.busy() or self.engine.currentData() != 'llama':
+            return
+        if not self.autoload.isChecked():
+            self.status.setText('Lokales Modell noch nicht geladen · Modell laden anklicken.')
+        elif Path(self.gguf.text()).expanduser().is_file():
+            self.start_local_model()
+        else:
+            self.status.setText('Lokales Modell fehlt · GGUF auswählen oder Standardmodell herunterladen.')
+
+    def start_local_model(self, download=False):
+        if self.busy():
+            return
+        self._local_backend = None
+        self.progress.setRange(0, 0)
+        self.status.setText('Lokales Modell wird vorbereitet …')
+        worker = EngineWorker(self.local_engine, self.settings(), download)
+        worker.progress.connect(self.status.setText)
+        worker.ready.connect(self.local_model_ready)
+        self.start(worker)
+
+    def local_model_ready(self, backend, path):
+        self.gguf.setText(path)
+        self._local_backend = backend
+        self.store.setValue('llama_model', path)
+        self.status.setText('Lokales Modell bereit · ' + Path(path).name)
 
     def update_ocr_controls(self):
         from .ocr import effective_backend
@@ -181,7 +309,12 @@ class Window(QMainWindow):
         self.ocr_command_label.setVisible(show_command)
 
     def settings(self):
-        settings = Settings(self.url.text().strip(), self.model.currentText().strip(), self.template.text().strip(), self.timeout.value(), self.ocr_enabled.isChecked(), self.ocr_language.text().strip(), self.ocr_command.text().strip(), self.ocr_backend.currentData())
+        settings = Settings(url=self.url.text().strip(), model=self.model.currentText().strip(),
+                            template=self.template.text().strip(), timeout=self.timeout.value(),
+                            ocr_enabled=self.ocr_enabled.isChecked(), ocr_language=self.ocr_language.text().strip(),
+                            ocr_command=self.ocr_command.text().strip(), ocr_backend=self.ocr_backend.currentData(),
+                            engine=self.engine.currentData(), llama_model=self.gguf.text().strip(),
+                            llama_autoload=self.autoload.isChecked())
         for key, value in asdict(settings).items():
             self.store.setValue(key, value)
         return settings
@@ -195,6 +328,7 @@ class Window(QMainWindow):
         self.undo_button.setEnabled(not value and bool(self.history))
         self.table.setEnabled(not value)
         self.cancel_button.setEnabled(value)
+        self.refresh_analysis_enabled()
 
     def dragEnterEvent(self, event):
         if not self.busy() and event.mimeData().hasUrls() and any(u.isLocalFile() for u in event.mimeData().urls()):
@@ -315,7 +449,9 @@ class Window(QMainWindow):
         settings = self.settings()
         try:
             validate_template(settings.template)
-            if not settings.model:
+            if settings.engine == 'llama' and (self._local_backend is None or not self.local_engine.alive()):
+                raise ValueError('Bitte zuerst das lokale Modell laden.')
+            if settings.engine == 'ollama' and not settings.model:
                 raise ValueError('Bitte zuerst ein Modell auswählen oder eingeben.')
         except ValueError as error:
             self.error(str(error))
@@ -325,7 +461,7 @@ class Window(QMainWindow):
         for row, _ in items:
             self.table.item(row, 3).setText('Wartet auf Analyse …')
         self.status.setText('Analysiert ausgewählte Dateien nacheinander …')
-        worker = Worker(settings, items)
+        worker = Worker(settings, items, self._local_backend if settings.engine == 'llama' else None)
         worker.result.connect(self.result)
         self.start(worker)
 
@@ -341,7 +477,7 @@ class Window(QMainWindow):
     def cancel(self):
         if self.worker:
             self.worker.requestInterruption()
-            self.status.setText('Abbruch vorgemerkt — laufende Anfrage endet spätestens nach dem Timeout.')
+            self.status.setText('Abbruch vorgemerkt — Download/Laden wird beendet; eine laufende KI-Anfrage endet spätestens nach dem Timeout.')
             self.cancel_button.setEnabled(False)
 
     def finished(self):
@@ -351,12 +487,19 @@ class Window(QMainWindow):
                 if self.table.item(row, 3).text() == 'Wartet auf Analyse …':
                     self.table.item(row, 3).setText('Nicht analysiert · abgebrochen')
             self.status.setText('Analyse abgebrochen.' if interrupted else 'Analyse beendet · Vorschläge prüfen und gewünschte Dateien umbenennen.')
+        if isinstance(self.worker, EngineWorker) and interrupted:
+            self.local_engine.stop()
+            self._local_backend = None
+            self.status.setText('Lokales Laden abgebrochen.')
         self.set_busy(False)
         if self.progress.maximum() == 0:
             self.progress.setRange(0, 1)
             self.progress.setValue(1)
         self.worker.deleteLater()
         self.worker = None
+        self.refresh_analysis_enabled()
+        if self._close_pending:
+            QTimer.singleShot(0, self.close)
 
     def rename(self):
         selected = self.selected()
@@ -425,9 +568,14 @@ class Window(QMainWindow):
     def closeEvent(self, event):
         if self.busy():
             self.cancel()
+            if isinstance(self.worker, EngineWorker):
+                self._close_pending = True
+                event.ignore()
+                return
             QMessageBox.information(self, 'Analyse läuft', 'Bitte warte, bis die laufende Anfrage beendet ist. Danach lässt sich Nomi schließen.')
             event.ignore()
         else:
+            self.local_engine.stop()
             self.settings()
             event.accept()
 
@@ -447,9 +595,16 @@ def main():
     app = QApplication(sys.argv)
     app.setStyle('Fusion')
     app.setStyleSheet(STYLE)
+    if '--runtime-check' in sys.argv:
+        from .diagnostics import runtime_check
+        sys.exit(runtime_check())
+    if '--llama-self-test' in sys.argv:
+        from .diagnostics import run_llama_self_test
+        sys.exit(run_llama_self_test(app))
     if '--self-test' in sys.argv:
         from .diagnostics import run_self_test
         sys.exit(run_self_test(app))
     window = Window()
+    app.aboutToQuit.connect(window.local_engine.stop)
     window.show()
     sys.exit(app.exec())

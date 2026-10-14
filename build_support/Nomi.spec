@@ -9,11 +9,15 @@ root = Path(SPECPATH).parent
 metadata = copy_metadata('nomi-renamer')
 # Always compile from tracked source, never reuse a developer's stale binary.
 vision_helper = runpy.run_path(str(root / 'build_support' / 'build_vision.py'))['build']()
+llama_directory = runpy.run_path(str(root / 'build_support' / 'fetch_llama.py'))['fetch']()
+llama_binaries = [(str(p), 'nomi/bin/llama') for p in llama_directory.iterdir()
+                  if p.name == 'llama-server' or p.name.endswith('.dylib')]
 a = Analysis(
     [str(root / 'build_support' / 'launcher.py')],
     pathex=[str(root)],
-    binaries=[(str(vision_helper), 'nomi/bin')],
+    binaries=[(str(vision_helper), 'nomi/bin')] + llama_binaries,
     datas=[(str(root / 'LICENSE'), '.'), (str(root / 'README.md'), '.')]
+          + [(str(llama_directory / 'LICENSE'), 'third_party/llama.cpp')]
           + metadata + collect_data_files('pypdfium2_raw'),
     hiddenimports=['PIL.PdfImagePlugin', 'nomi.diagnostics'],
     excludes=['PySide6.QtWebEngineCore', 'PySide6.QtWebEngineWidgets', 'tkinter'],

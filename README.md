@@ -2,7 +2,7 @@
 
 **Jede Datei verdient einen Namen.**
 
-Nomi liest Dokumentinhalte mit einem konfigurierbaren Ollama-Backend und schlägt verständliche Dateinamen vor. Die Desktop-App verwendet Python und PySide6. Dateien werden ausschließlich nach einem expliziten Klick umbenannt.
+Nomi liest Dokumentinhalte mit lokalem llama.cpp oder einem konfigurierbaren Ollama-Backend und schlägt verständliche Dateinamen vor. Die Desktop-App verwendet Python und PySide6. Dateien werden ausschließlich nach einem expliziten Klick umbenannt.
 
 ## Starten
 
@@ -25,11 +25,31 @@ py -3.14 -m venv .venv
 
 ## Verwendung
 
-1. Ollama-Adresse eintragen, etwa `http://localhost:11434` oder die Adresse eines LAN-Servers. Der tatsächliche Port deines Routers muss bekannt sein; Nomi errät ihn nicht.
-2. **Modelle laden** anklicken oder einen vorhandenen Modellnamen eingeben. Unterstützt wird die native Ollama-API `/api/tags` und `/api/chat`, einschließlich strukturierter JSON-Ausgaben.
+1. **Lokal · llama.cpp** verwenden: einmal **Standardmodell herunterladen** anklicken oder eine vorhandene GGUF-Datei auswählen. Danach **Modell laden**; mit **Beim Start laden** lädt Nomi die gewählte Datei künftig automatisch im Hintergrund.
+2. Alternativ **Ollama · Server** wählen, Adresse eintragen und **Modelle laden** anklicken oder einen Modellnamen eingeben. Unterstützt werden `/api/tags` und `/api/chat` mit strukturierten JSON-Ausgaben. Der Server-Port muss bekannt sein; Nomi errät ihn nicht.
 3. Dateien/Ordner hineinziehen oder über den Dateidialog auswählen. Unterordner sind optional. Symbolische Links werden nicht importiert.
 4. Ausgewählte Dateien analysieren. Namensvorschläge prüfen, bearbeiten und unerwünschte Dateien per Checkbox abwählen.
 5. **Auswahl umbenennen**. Umbenennungsaktionen können während derselben Sitzung schrittweise rückgängig gemacht werden.
+
+## Lokale KI mit llama.cpp
+
+Die macOS-App enthält eine auf Release **b11622** fixierte llama.cpp-Runtime. Es wird kein separater Ollama- oder llama.cpp-Dienst benötigt. Nomi startet einen eigenen `llama-server` auf `127.0.0.1` mit freiem Port und zufälligem Sitzungsschlüssel; Schlüssel werden weder gespeichert noch protokolliert. Lokale HTTP-Anfragen umgehen System-Proxys. Es gibt keinen automatischen Wechsel zu Ollama oder einem Cloud-Anbieter. Beim normalen Schließen oder Wechsel zu Ollama beendet Nomi nur den selbst gestarteten Prozess.
+
+Als Standard wird das offizielle **Qwen3-4B-Q4_K_M.gguf** angeboten (2.497.280.256 Bytes, etwa 2,5 GB, Apache-2.0). Downloadquelle und Revision sind festgelegt; beim Download werden Größe und SHA-256 geprüft. Abbruch/Fehler entfernt die temporäre Datei; bestehende abweichende Modelle werden nicht überschrieben. Modelle gehören weder in Git noch ins App-Bundle. Speicherort auf macOS: `~/Library/Application Support/Nomi/models/`, auf Linux im XDG-Datenverzeichnis, unter Windows in LocalAppData.
+
+Bei deinem ersten Start ohne Modell ist ein einmaliger Download über die Schaltfläche nötig. Danach lädt **Beim Start laden** die vorhandene, konfigurierte GGUF-Datei ohne erneuten Download. Es wird ein Modell gleichzeitig geladen. Ladezustand, Download-Prozent und Fehler erscheinen in der Statuszeile; Analyse ist erst nach Betriebsbereitschaft möglich. Abbruch während des Startens beendet den Kindprozess. Ein aktiver Download reagiert spätestens nach dem Netzwerk-Timeout (30 s). Abgebrochene Downloads werden derzeit nicht fortgesetzt.
+
+Die Engine nutzt bis zu 8.192 Kontexttokens, einen Analyseplatz und nach Möglichkeit GPU-Offloading (auf macOS Metal). Thinking ist für die strukturierte Metadatenextraktion deaktiviert. Der Arbeitsspeicherbedarf liegt über der reinen GGUF-Dateigröße; andere gewählte Modelle können deutlich mehr RAM benötigen. Ein zu langer Token-Kontext führt zu einem Fehler, nicht zu einem Cloud-Fallback. Die Namensqualität bleibt modellabhängig und muss geprüft werden.
+
+Für Entwickler aus dem Quellcode (macOS) wird die Runtime einmal vorbereitet:
+
+```sh
+.venv/bin/python build_support/fetch_llama.py
+```
+
+Der App-Build führt diesen Schritt automatisch aus. Die offiziellen ARM64-/x64-Archive werden mit festgelegten SHA-256-Prüfsummen geprüft; die Runtime-Lizenz wird im App-Bundle mitgeliefert. Auf anderen Plattformen kann eine vorhandene `llama-server`-Installation aus dem Suchpfad verwendet werden; entsprechende Pakete sind noch nicht gebaut oder praktisch geprüft.
+
+Quellen: [llama.cpp b11622](https://github.com/ggml-org/llama.cpp/releases/tag/b11622), [Qwen3-4B-GGUF](https://huggingface.co/Qwen/Qwen3-4B-GGUF/tree/bc640142c66e1fdd12af0bd68f40445458f3869b).
 
 Schema-Felder: `{datum}`, `{absender}`, `{dokumenttyp}`, `{titel}`, `{empfaenger}`, `{kennung}`.
 
@@ -71,7 +91,7 @@ Vision verwendet die genaue Erkennung mit Sprachkorrektur, OCR-Revision 3 und CP
 
 Technische Referenzen: [Apple Vision](https://developer.apple.com/documentation/vision/recognizing-text-in-images), [Tesseract-CLI](https://tesseract-ocr.github.io/tessdoc/Command-Line-Usage.html), [PDFium-Python-API](https://pypdfium2.readthedocs.io/en/stable/python_api.html).
 
-## Grenzen der Version 0.3
+## Grenzen der Version 0.4
 
 - Text-PDFs, optional gescannte PDF-Seiten via Apple Vision oder Tesseract, UTF-8/Windows-1252-Texte, Markdown und CSV; keine allgemeine Bildanalyse oder DOCX-Verarbeitung.
 - Pro Dokument maximal 16.000 Zeichen und bei PDFs die ersten 20 Seiten. Angaben außerhalb dieses Ausschnitts werden nicht berücksichtigt. Begrenzte PDF-/Textauszüge werden in der Tabelle kenntlich gemacht.
@@ -80,19 +100,21 @@ Technische Referenzen: [Apple Vision](https://developer.apple.com/documentation/
 - Ausgewählte Umbenennungen werden vorher auf Konflikte geprüft. Bestehende Dateien werden nicht überschrieben. Für die Umbenennung wird ein Hardlink mit anschließendem Entfernen des alten Verzeichniseintrags verwendet. Dateisysteme ohne Hardlink-Unterstützung (z. B. manche USB-/Netzlaufwerke) werden mit einem Fehler abgewiesen.
 - Eine Fehlersituation führt zu einem bestmöglichen Rollback. Bei unvollständiger Rückabwicklung werden die verbleibenden Umbenennungen gemeldet und in der Sitzungshistorie zur Wiederherstellung behalten. Gleichzeitige externe Dateiänderungen und Stromausfälle sind nicht transaktional abgesichert.
 - Rückgängig verweigert die Aktion bei veränderten Dateien oder neu belegten Originalnamen. Historie ist derzeit nur im Arbeitsspeicher vorhanden.
-- Noch keine signierten Installer, automatische Updates oder integrierte llama.cpp-Runtime. macOS wurde in der Entwicklungsumgebung getestet; Windows erfordert noch einen eigenen Plattformtest.
+- Noch keine Developer-ID-signierten Installer oder automatischen Updates. macOS wurde in der Entwicklungsumgebung getestet; Windows erfordert noch einen eigenen Plattformtest.
 
 ## Datenschutz
 
-Dokumenttext wird an die eingestellte Backend-Adresse gesendet. Ein Ollama-kompatibler Router kann Cloud-Fallback verwenden. Nomi kann dieses Routing nicht erkennen. Es gibt keinen automatischen Cloud-Fallback in Nomi selbst. Einstellungen werden lokal über Qt gespeichert; Dokumentinhalte werden nicht protokolliert.
+Im lokalen llama.cpp-Modus wird Dokumenttext ausschließlich über die interne Loopback-Verbindung verarbeitet. Beim Modelldownload wird Hugging Face kontaktiert; Dokumentinhalte werden nicht mitgesendet. Im Ollama-Modus wird Dokumenttext an die eingestellte Backend-Adresse gesendet. Ein Ollama-kompatibler Router kann Cloud-Fallback verwenden. Nomi kann dieses Routing nicht erkennen. Es gibt keinen automatischen Cloud-Fallback in Nomi selbst. Einstellungen werden lokal über Qt gespeichert; Dokumentinhalte werden nicht protokolliert.
 
 ## Architektur
 
 - `nomi/core.py`: Extraktion, Backend-Protokoll, Ollama-Anbindung, Namensvalidierung und Umbenennung.
-- `nomi/app.py`: PySide6-Oberfläche und sequenzieller Analyse-Worker.
+- `nomi/app.py`: PySide6-Oberfläche, sequenzieller Analyse-Worker und asynchrones Modell-Laden.
+- `nomi/llama_backend.py`: eigener llama.cpp-Prozess, strukturierte Inferenz und Lebenszyklus.
+- `nomi/local_model.py`: Modellpfade, verifizierter atomarer Standardmodell-Download.
 - `nomi/ocr.py`: optionale PDFium-Rasterung, OCR-Backend-Schnittstelle und abbrechbare Vision-/Tesseract-Prozesse.
 - `native/VisionOCR.swift`: lokaler Apple-Vision-Helfer, beim Build in die App eingebunden.
-- Die Provider-Grenze ermöglicht später eine lokale llama.cpp-Implementierung.
+- Ollama und llama.cpp verwenden denselben Metadaten-Prompt, dasselbe JSON-Schema und dieselbe konservative Datumsprüfung.
 
 ## Tests
 
@@ -104,7 +126,7 @@ Synthetische Testdaten werden nur in temporären Ordnern erzeugt. Keine produkti
 
 ## Verifizierter Entwicklungsstand (14.10.2026)
 
-- Installation in der vorhandenen `.venv` mit Python 3.14.8, PySide6 6.10.3 und pypdf 6.20.1 abgeschlossen; `pip check` erfolgreich. Alle 39 Tests bestehen; einschließlich echter Vision-OCR, optionaler Tesseract-OCR, OCR im Qt-Worker, Prozessabbruch/-timeout, Datumsbelegung, Namenssuffixen und manuellen Konflikten. Plattformspezifische OCR-Integrationstests werden ohne die passenden Bibliotheken/Backends übersprungen. Die macOS-CI baut und prüft Vision ohne Tesseract-Installation; die Linux-CI prüft Tesseract.
+- Installation in der vorhandenen `.venv` mit Python 3.14.8, PySide6 6.10.3 und pypdf 6.20.1 abgeschlossen; `pip check` erfolgreich. Alle 50 Tests bestehen; einschließlich echter Vision-OCR, optionaler Tesseract-OCR, OCR im Qt-Worker, Prozessabbruch/-timeout, verifiziertem Modelldownload, lokalem Autoload, Prozesswechsel, Datumsbelegung, Namenssuffixen und manuellen Konflikten. Plattformspezifische OCR-Integrationstests werden ohne die passenden Bibliotheken/Backends übersprungen. Die macOS-CI baut und prüft Vision ohne Tesseract-Installation; die Linux-CI prüft Tesseract.
 - PySide6 ist auf `>=6.9,<6.11` begrenzt: Mit 6.12.0 trat beim Schließen nach nativer Tabellenbearbeitung ein QObject-Absturz auf. Derselbe Ablauf inklusive Schließen wurde mit 6.10.3 erfolgreich wiederholt (Exit-Code 0).
 - Core-, HTTP-Vertrags- und Qt-Tests laufen mit synthetischen Dokumenten. Sie prüfen unter anderem Konflikte, bestehende Zieldateien, doppelte Quellen, Rollback und teilweise fehlgeschlagene Rückabwicklungen, veränderte Dateien, Import, Auswahl, Analyse, Modellladen und Abbruch.
 - Die macOS-Oberfläche wurde gestartet und visuell geprüft; nativer Dateiimport, manuelles Bearbeiten, Umbenennen und Rückgängig wurden am Testdokument bedient und überprüft. Drag-and-drop wird zusätzlich über Qt-Ereignisse getestet.
@@ -117,14 +139,14 @@ Synthetische Testdaten werden nur in temporären Ordnern erzeugt. Keine produkti
 
 MIT — siehe [LICENSE](LICENSE). Die Lizenz gilt für Nomi; Abhängigkeiten und verwendete Modelle haben eigene Lizenzbedingungen.
 
-## macOS-App bauen (Version 0.3.0)
+## macOS-App bauen (Version 0.4.0)
 
 ```sh
 .venv/bin/python -m pip install -e '.[ocr,build]'
 .venv/bin/python -m PyInstaller --noconfirm build_support/Nomi.spec
 ```
 
-Die Anwendung liegt anschließend unter `dist/Nomi.app` und lässt sich per Doppelklick starten. Python, Qt, die OCR-Python-Bibliotheken und der native Vision-Helfer sind enthalten. Auf macOS wird keine Tesseract-Installation mehr benötigt. Wer Tesseract ausdrücklich auswählt, installiert es und seine Sprachdaten separat; dabei werden auch die üblichen Homebrew-Pfade durchsucht. Für einen Ollama-Server im LAN benötigt Nomi die macOS-Berechtigung für das lokale Netzwerk. Die App erklärt diesen Zugriff im Systemdialog; gegebenenfalls unter Systemeinstellungen → Datenschutz & Sicherheit → Lokales Netzwerk für Nomi erlauben. [Apple-Dokumentation](https://developer.apple.com/documentation/technotes/tn3179-understanding-local-network-privacy).
+Die Anwendung liegt anschließend unter `dist/Nomi.app` und lässt sich per Doppelklick starten. Python, Qt, die OCR-Python-Bibliotheken, der native Vision-Helfer und llama.cpp sind enthalten. Modelldateien werden separat in den Anwendungsdaten gespeichert. Auf macOS wird keine Tesseract-Installation mehr benötigt. Wer Tesseract ausdrücklich auswählt, installiert es und seine Sprachdaten separat; dabei werden auch die üblichen Homebrew-Pfade durchsucht. Für einen Ollama-Server im LAN benötigt Nomi die macOS-Berechtigung für das lokale Netzwerk. Die App erklärt diesen Zugriff im Systemdialog; gegebenenfalls unter Systemeinstellungen → Datenschutz & Sicherheit → Lokales Netzwerk für Nomi erlauben. [Apple-Dokumentation](https://developer.apple.com/documentation/technotes/tn3179-understanding-local-network-privacy).
 
 Ein lokaler Build übernimmt Prozessorarchitektur und macOS-Version des Build-Rechners als konservative Mindestanforderung. Der Entwicklungsbuild wurde auf Apple Silicon/macOS 27 gebaut und ist kein getesteter universeller Intel-/ARM-Build. Für ältere Systeme auf einem passenden Build-Rechner bauen. Die GitHub-Variante wird auf dem im Workflow angegebenen macOS-Runner erstellt.
 
@@ -140,4 +162,16 @@ Der Selbsttest prüft das automatische OCR-Backend, Qt, Umbenennen und Rückgän
 
 ## Automatische Prüfungen
 
-GitHub Actions prüft Pull Requests und Pushes mit Python 3.11/3.14 auf Ubuntu sowie Python 3.14 auf macOS. OCR und der Offline-Selbsttest gehören dazu. Nach erfolgreichen Tests wird ein macOS-Bundle gebaut, mit reduziertem Finder-ähnlichem Suchpfad geprüft und als ZIP-Artefakt am Workflow-Lauf gespeichert. Die Action-Versionen sind auf Commit-Hashes fixiert. Workflow und Build sind unter `.github/workflows/tests.yml` bzw. `build_support/Nomi.spec` beschrieben.
+GitHub Actions prüft Pull Requests und Pushes mit Python 3.11/3.14 auf Ubuntu sowie Python 3.14 auf macOS. OCR und der Offline-Selbsttest gehören dazu. Nach erfolgreichen Tests wird ein macOS-Bundle einschließlich llama.cpp gebaut, mit reduziertem Finder-ähnlichem Suchpfad auf OCR und native Runtime geprüft und als ZIP-Artefakt am Workflow-Lauf gespeichert. Die Action-Versionen sind auf Commit-Hashes fixiert. Workflow und Build sind unter `.github/workflows/tests.yml` bzw. `build_support/Nomi.spec` beschrieben.
+
+### Zusätzliche llama.cpp-Prüfungen
+
+```sh
+# Laufzeit und abhängige Bibliotheken prüfen, ohne Modell/Netzwerk:
+dist/Nomi.app/Contents/MacOS/Nomi --runtime-check
+# Echte lokale Inferenz: Standardmodell muss bereits vorhanden sein.
+# Nur synthetischer Scan in temporärem Ordner, keine Änderungen an persönlichen Einstellungen.
+dist/Nomi.app/Contents/MacOS/Nomi --llama-self-test
+```
+
+Lokal mit dem echten Standardmodell und fertigem Bundle geprüft: automatisches Laden, Apple-Vision-OCR, strukturierte lokale Generierung, Umbenennen, Rückgängig und Beenden des eigenen Servers. Gemessene Beispielzeiten: Modellstart 1,2–6,8 s je nach Cachezustand, OCR plus Generierung etwa 2,7–27,2 s für den kurzen synthetischen Scan. Insbesondere die Initialisierung nativer OCR-Frameworks kann beim ersten Aufruf länger dauern; die Oberfläche bleibt dabei bedienbar. Das ist keine allgemeine Leistungsgarantie. Die CI verwendet für Modell-Lebenszyklus und API-Tests einen synthetischen Kindprozess und lädt keine mehrgigabytegroßen Gewichte.
