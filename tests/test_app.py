@@ -1,5 +1,8 @@
 """Real Qt event-loop checks using synthetic documents and an isolated settings file."""
 import time
+import importlib.util
+import shutil
+import unittest
 from pathlib import Path
 from tempfile import TemporaryDirectory
 from unittest import TestCase
@@ -45,7 +48,8 @@ class AppTests(TestCase):
     def wait_idle(self):
         deadline = time.monotonic() + 5
         while self.window.busy() and time.monotonic() < deadline:
-            QTest.qWait(10)
+            self.app.processEvents()
+            time.sleep(.01)  # Release the GIL while the worker imports/runs PDF libraries.
         self.assertFalse(self.window.busy())
 
     def test_import_edit_select_rename_undo(self):
@@ -121,3 +125,66 @@ class AppTests(TestCase):
         self.assertEqual(self.window.table.item(0, 2).text(), '2026-10-14_Beispiel_Rechnung.txt')
         self.assertEqual(self.window.table.item(0, 3).text(), 'Bereit')
         self.assertTrue(self.a.exists())
+
+    def test_batch_suggestions_are_unique_and_manual_conflicts_visible(self):
+        second = self.root/'second.txt'
+        second.write_text('Rechnung Test AG')
+        self.window.add([self.a, second])
+        self.window.model.setCurrentText('synthetic-model')
+        with patch('nomi.app.OllamaBackend.suggest', return_value={'absender': 'Test AG', 'dokumenttyp': 'Rechnung'}):
+            self.click(self.window.analyze_button)
+            self.wait_idle()
+        names = [self.window.table.item(r, 2).text() for r in range(2)]
+        self.assertEqual(names, ['Test_AG_Rechnung.txt', 'Test_AG_Rechnung_2.txt'])
+        self.window.table.item(1, 2).setText(names[0])
+        self.assertTrue(all('Namenskonflikt' in self.window.table.item(r, 3).text() for r in range(2)))
+        with patch.object(self.window, 'error') as error:
+            self.click(self.window.rename_button)
+            error.assert_called_once()
+        self.assertTrue(self.a.exists())
+        self.assertTrue(second.exists())
+        self.window.table.item(1, 0).setCheckState(Qt.CheckState.Unchecked)
+        self.assertNotIn('Namenskonflikt', self.window.table.item(0, 3).text())
+
+    def test_ocr_settings_are_persisted_and_passed_to_worker(self):
+        self.window.ocr_enabled.setChecked(True)
+        self.window.ocr_language.setText('eng')
+        self.window.ocr_command.setText('/custom/tesseract')
+        settings = self.window.settings()
+        self.assertTrue(settings.ocr_enabled)
+        self.assertEqual(settings.ocr_language, 'eng')
+        self.assertEqual(settings.ocr_command, '/custom/tesseract')
+        self.assertTrue(self.store.value('ocr_enabled'))
+        self.window.add([self.a])
+        self.window.model.setCurrentText('synthetic-model')
+        from nomi.core import Extraction
+        with patch('nomi.app.extract_document', return_value=Extraction('Synthetic OCR', True, True)) as extract_document:
+            with patch('nomi.app.OllamaBackend.suggest', return_value={'dokumenttyp': 'Rechnung'}):
+                self.click(self.window.analyze_button)
+                self.wait_idle()
+        self.assertEqual(extract_document.call_args.kwargs['settings'], settings.__class__(
+            settings.url, 'synthetic-model', settings.template, settings.timeout, True, 'eng', '/custom/tesseract'))
+        self.assertIn('OCR', self.window.table.item(0, 3).text())
+        self.assertIn('Textausschnitt', self.window.table.item(0, 3).text())
+
+    @unittest.skipUnless(shutil.which('tesseract') and importlib.util.find_spec('pypdfium2') and importlib.util.find_spec('PIL'), 'Install Tesseract and .[ocr]')
+    def test_real_ocr_in_ui_worker(self):
+        from PIL import Image, ImageDraw, ImageFont
+        image = Image.new('RGB', (1400, 500), 'white')
+        draw = ImageDraw.Draw(image)
+        draw.text((60, 80), 'Rechnung Beispiel GmbH', fill='black', font=ImageFont.load_default(size=55))
+        source = self.root/'scan.pdf'
+        image.save(source, 'PDF', resolution=150)
+        image.close()
+        original = source.read_bytes()
+        self.window.add([source])
+        self.window.ocr_enabled.setChecked(True)
+        self.window.ocr_language.setText('eng')
+        self.window.model.setCurrentText('synthetic-model')
+        with patch('nomi.app.OllamaBackend.suggest', return_value={'dokumenttyp': 'Rechnung'}) as suggest:
+            self.click(self.window.analyze_button)
+            self.wait_idle()
+        self.assertIn('Beispiel', suggest.call_args.args[0])
+        self.assertIn('OCR', self.window.table.item(0, 3).text())
+        self.assertEqual(self.window.table.item(0, 2).text(), 'Rechnung.pdf')
+        self.assertEqual(source.read_bytes(), original)

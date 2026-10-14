@@ -4,7 +4,7 @@ from pathlib import Path
 from dataclasses import asdict
 from PySide6.QtCore import Qt, QThread, Signal, QSettings
 from PySide6.QtWidgets import (QApplication, QMainWindow, QWidget, QVBoxLayout, QHBoxLayout, QLabel, QPushButton, QTableWidget, QTableWidgetItem, QHeaderView, QFileDialog, QCheckBox, QLineEdit, QComboBox, QSpinBox, QProgressBar, QMessageBox)
-from .core import Settings, OllamaBackend, collect, extract, make_name, rename_batch, undo, validate_template, RenameError
+from .core import Settings, OllamaBackend, collect, make_name, rename_batch, undo, validate_template, RenameError, extract_document, AnalysisCancelled, available_name, validate_name
 
 class Worker(QThread):
     result = Signal(int, str, str)
@@ -26,18 +26,34 @@ class Worker(QThread):
             except Exception as error:
                 self.problem.emit(str(error))
             return
+        reserved = {}
         for row, path in self.items:
             if self.isInterruptionRequested():
                 break
             try:
-                name = make_name(backend.suggest(extract(path), self.settings), path, self.settings.template)
+                document = extract_document(path, settings=self.settings, cancelled=self.isInterruptionRequested)
+                if self.isInterruptionRequested():
+                    break
+                metadata = backend.suggest(document.text, self.settings)
+                proposed = make_name(metadata, path, self.settings.template)
+                name = available_name(path, proposed, reserved.setdefault(path.parent, set()))
                 if name == path.name:
                     status = 'Unverändert'
                 elif path.with_name(name).exists():
                     status = 'Namenskonflikt — bitte bearbeiten'
                 else:
                     status = 'Bereit'
+                if name != proposed:
+                    status += ' · Konflikt durch Nummernzusatz vermieden'
+                for warning in metadata.get('_warnings', []):
+                    status += ' · ' + warning
+                if document.used_ocr:
+                    status += ' · OCR'
+                if document.truncated:
+                    status += ' · Textausschnitt, bitte prüfen'
                 self.result.emit(row, name, status)
+            except AnalysisCancelled:
+                break
             except Exception as error:
                 self.result.emit(row, '', 'Fehler: ' + str(error))
 
@@ -93,9 +109,20 @@ class Window(QMainWindow):
         schema_row = QHBoxLayout()
         schema_row.addWidget(QLabel('Namensschema'))
         self.template = QLineEdit(str(self.store.value('template', '{datum}_{absender}_{dokumenttyp}')))
-        self.template.setToolTip('Verfügbare Felder: {datum}, {absender}, {dokumenttyp}, {titel}')
+        self.template.setToolTip('Verfügbare Felder: {datum}, {absender}, {dokumenttyp}, {titel}, {empfaenger}, {kennung}')
         schema_row.addWidget(self.template)
         layout.addLayout(schema_row)
+        ocr_row = QHBoxLayout()
+        self.ocr_enabled = QCheckBox('OCR für gescannte PDF-Seiten (Tesseract)')
+        self.ocr_enabled.setChecked(str(self.store.value('ocr_enabled', 'false')).lower() in {'true', '1'})
+        self.ocr_language = QLineEdit(str(self.store.value('ocr_language', 'deu+eng')))
+        self.ocr_language.setMaximumWidth(110)
+        self.ocr_language.setToolTip('Installierte Tesseract-Sprachen, z.B. deu+eng')
+        self.ocr_command = QLineEdit(str(self.store.value('ocr_command', 'tesseract')))
+        self.ocr_command.setToolTip('Tesseract-Programmname oder vollständiger Programmpfad')
+        for widget in (self.ocr_enabled, QLabel('Sprache'), self.ocr_language, QLabel('Programm'), self.ocr_command):
+            ocr_row.addWidget(widget)
+        layout.addLayout(ocr_row)
         note = QLabel('Die Analyse sendet bis zu 16.000 Zeichen je Datei an die eingestellte Adresse. PDFs: maximal 20 Seiten.\nEin vorgeschalteter Router kann Inhalte an Cloud-Anbieter weiterleiten. Umbenennung erfolgt erst nach deinem Klick.')
         note.setWordWrap(True)
         note.setStyleSheet('color: #aeb9d2; font-size: 11px;')
@@ -136,10 +163,10 @@ class Window(QMainWindow):
         self.undo_button.clicked.connect(self.revert)
         self.all_button.clicked.connect(lambda: self.select_all(True))
         self.none_button.clicked.connect(lambda: self.select_all(False))
-        self.busy_widgets = [self.files_button, self.folder_button, self.recursive, self.clear_button, self.url, self.model, self.connect_button, self.timeout, self.template, self.all_button, self.none_button, self.analyze_button, self.rename_button, self.undo_button]
+        self.busy_widgets = [self.files_button, self.folder_button, self.recursive, self.clear_button, self.url, self.model, self.connect_button, self.timeout, self.template, self.all_button, self.none_button, self.analyze_button, self.rename_button, self.undo_button, self.ocr_enabled, self.ocr_language, self.ocr_command]
 
     def settings(self):
-        settings = Settings(self.url.text().strip(), self.model.currentText().strip(), self.template.text().strip(), self.timeout.value())
+        settings = Settings(self.url.text().strip(), self.model.currentText().strip(), self.template.text().strip(), self.timeout.value(), self.ocr_enabled.isChecked(), self.ocr_language.text().strip(), self.ocr_command.text().strip())
         for key, value in asdict(settings).items():
             self.store.setValue(key, value)
         return settings
@@ -213,6 +240,30 @@ class Window(QMainWindow):
     def changed(self, item):
         if item.column() == 2:
             self.table.item(item.row(), 3).setText('Manuell bearbeitet — wird beim Umbenennen geprüft')
+        if item.column() in (0, 2):
+            self.check_conflicts()
+
+    def check_conflicts(self):
+        selected = self.selected()
+        targets = {}
+        for row, path in selected:
+            name = self.table.item(row, 2).text()
+            if not name:
+                continue
+            try:
+                target = validate_name(path, name)
+                key = str(target).casefold()
+                targets.setdefault(key, []).append(row)
+                if target != path and (target.exists() or target.is_symlink()):
+                    self.table.item(row, 3).setText('Namenskonflikt — Ziel existiert')
+                elif self.table.item(row, 3).text().startswith('Namenskonflikt'):
+                    self.table.item(row, 3).setText('Vorschlag prüfen')
+            except ValueError as error:
+                self.table.item(row, 3).setText('Ungültiger Name: ' + str(error))
+        for rows in targets.values():
+            if len(rows) > 1:
+                for row in rows:
+                    self.table.item(row, 3).setText('Namenskonflikt — mehrfach ausgewählter Zielname')
 
     def start(self, worker):
         if self.busy():
@@ -267,7 +318,9 @@ class Window(QMainWindow):
         self.table.blockSignals(True)
         self.table.item(row, 2).setText(name)
         self.table.item(row, 3).setText(status)
+        self.table.item(row, 3).setToolTip(status)
         self.table.blockSignals(False)
+        self.check_conflicts()
         self.progress.setValue(self.progress.value() + 1)
 
     def cancel(self):
