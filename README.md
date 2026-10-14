@@ -139,7 +139,7 @@ Synthetische Testdaten werden nur in temporären Ordnern erzeugt. Keine produkti
 
 MIT — siehe [LICENSE](LICENSE). Die Lizenz gilt für Nomi; Abhängigkeiten und verwendete Modelle haben eigene Lizenzbedingungen.
 
-## macOS-App bauen (Version 0.4.1)
+## macOS-App bauen (Version 0.4.2)
 
 ```sh
 .venv/bin/python -m pip install -e '.[ocr,build]'
@@ -178,4 +178,4 @@ Lokal mit dem echten Standardmodell und fertigem Bundle geprüft: automatisches 
 
 ### Einstellungen
 
-Backend, Modell, Namensschema, Zeitlimit und OCR werden über **Einstellungen → Einstellungen …** konfiguriert. Auf macOS liegt der Eintrag im Nomi-App-Menü und ist mit **⌘,** erreichbar. Änderungen gelten direkt und werden beim Schließen des Einstellungsfensters gespeichert. Während laufender Analyse oder Modellinitialisierung sind die betroffenen Felder gesperrt. Im Hauptfenster bleiben Import, Dateiliste, Analyse und Umbenennung.
+Das Zahnrad oben rechts öffnet die Einstellungen. Backend, Modell, Namensschema, Zeitlimit und OCR werden auch über **Einstellungen → Einstellungen …** konfiguriert. Auf macOS liegt der Eintrag im Nomi-App-Menü und ist mit **⌘,** erreichbar. Änderungen gelten direkt und werden beim Schließen des Einstellungsfensters gespeichert. Während laufender Analyse oder Modellinitialisierung sind die betroffenen Felder gesperrt. Im Hauptfenster bleiben Import, Dateiliste, Analyse und Umbenennung.
