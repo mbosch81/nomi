@@ -25,5 +25,6 @@ app = BUNDLE(coll, name='Nomi.app', bundle_identifier='de.moreweb.nomi',
                  'CFBundleShortVersionString': version('nomi-renamer'),
                  'CFBundleVersion': version('nomi-renamer'),
                  'NSHighResolutionCapable': True,
+                 'NSLocalNetworkUsageDescription': 'Nomi verbindet sich mit deinem konfigurierten Ollama-Server im lokalen Netzwerk, um Dokumenttexte zu analysieren.',
                  'LSMinimumSystemVersion': '.'.join(platform.mac_ver()[0].split('.')[:2]),
              })

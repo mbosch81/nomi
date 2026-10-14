@@ -117,7 +117,7 @@ MIT — siehe [LICENSE](LICENSE). Die Lizenz gilt für Nomi; Abhängigkeiten und
 .venv/bin/python -m PyInstaller --noconfirm build_support/Nomi.spec
 ```
 
-Die Anwendung liegt anschließend unter `dist/Nomi.app` und lässt sich per Doppelklick starten. Python, Qt und die OCR-Python-Bibliotheken sind enthalten; Tesseract und Sprachdaten werden weiterhin separat benötigt. Beim Finder-Start werden auch die üblichen Homebrew-Pfade nach Tesseract durchsucht.
+Die Anwendung liegt anschließend unter `dist/Nomi.app` und lässt sich per Doppelklick starten. Python, Qt und die OCR-Python-Bibliotheken sind enthalten; Tesseract und Sprachdaten werden weiterhin separat benötigt. Beim Finder-Start werden auch die üblichen Homebrew-Pfade nach Tesseract durchsucht. Für einen Ollama-Server im LAN benötigt Nomi die macOS-Berechtigung für das lokale Netzwerk. Die App erklärt diesen Zugriff im Systemdialog; gegebenenfalls unter Systemeinstellungen → Datenschutz & Sicherheit → Lokales Netzwerk für Nomi erlauben. [Apple-Dokumentation](https://developer.apple.com/documentation/technotes/tn3179-understanding-local-network-privacy).
 
 Ein lokaler Build übernimmt Prozessorarchitektur und macOS-Version des Build-Rechners als konservative Mindestanforderung. Der Entwicklungsbuild wurde auf Apple Silicon/macOS 27 gebaut und ist kein getesteter universeller Intel-/ARM-Build. Für ältere Systeme auf einem passenden Build-Rechner bauen. Die GitHub-Variante wird auf dem im Workflow angegebenen macOS-Runner erstellt.
 
