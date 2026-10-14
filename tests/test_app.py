@@ -176,7 +176,7 @@ class AppTests(TestCase):
         self.assertIn('OCR', self.window.table.item(0, 3).text())
         self.assertIn('Textausschnitt', self.window.table.item(0, 3).text())
 
-    @unittest.skipUnless(shutil.which('tesseract') and importlib.util.find_spec('pypdfium2') and importlib.util.find_spec('PIL'), 'Install Tesseract and .[ocr]')
+    @unittest.skipUnless((shutil.which('tesseract') or (Path(__file__).resolve().parent.parent / 'nomi/bin/nomi-vision').is_file()) and importlib.util.find_spec('pypdfium2') and importlib.util.find_spec('PIL'), 'Install Tesseract and .[ocr]')
     def test_real_ocr_in_ui_worker(self):
         from PIL import Image, ImageDraw, ImageFont
         image = Image.new('RGB', (1400, 500), 'white')
@@ -197,3 +197,14 @@ class AppTests(TestCase):
         self.assertIn('OCR', self.window.table.item(0, 3).text())
         self.assertEqual(self.window.table.item(0, 2).text(), 'Rechnung.pdf')
         self.assertEqual(source.read_bytes(), original)
+
+    def test_ocr_backend_controls_and_settings(self):
+        from nomi.ocr import effective_backend
+        self.assertEqual(self.window.ocr_backend.currentData(), 'auto')
+        self.assertEqual(self.window.ocr_command.isHidden(), effective_backend('auto') != 'tesseract')
+        self.window.ocr_backend.setCurrentIndex(self.window.ocr_backend.findData('tesseract'))
+        self.assertFalse(self.window.ocr_command.isHidden())
+        self.assertEqual(self.window.settings().ocr_backend, 'tesseract')
+        self.window.ocr_backend.setCurrentIndex(self.window.ocr_backend.findData('vision'))
+        self.assertTrue(self.window.ocr_command.isHidden())
+        self.assertEqual(self.window.settings().ocr_backend, 'vision')

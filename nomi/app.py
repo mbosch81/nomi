@@ -48,7 +48,7 @@ class Worker(QThread):
                 for warning in metadata.get('_warnings', []):
                     status += ' · ' + warning
                 if document.used_ocr:
-                    status += ' · OCR'
+                    status += ' · OCR' + (f' ({document.ocr_backend})' if document.ocr_backend else '')
                 if document.truncated:
                     status += ' · Textausschnitt, bitte prüfen'
                 self.result.emit(row, name, status)
@@ -113,16 +113,25 @@ class Window(QMainWindow):
         schema_row.addWidget(self.template)
         layout.addLayout(schema_row)
         ocr_row = QHBoxLayout()
-        self.ocr_enabled = QCheckBox('OCR für gescannte PDF-Seiten (Tesseract)')
+        self.ocr_enabled = QCheckBox('OCR für gescannte PDF-Seiten')
         self.ocr_enabled.setChecked(str(self.store.value('ocr_enabled', 'false')).lower() in {'true', '1'})
+        self.ocr_backend = QComboBox()
+        self.ocr_backend.addItem('Automatisch', 'auto')
+        self.ocr_backend.addItem('Apple Vision (macOS)', 'vision')
+        self.ocr_backend.addItem('Tesseract', 'tesseract')
+        index = self.ocr_backend.findData(str(self.store.value('ocr_backend', 'auto')))
+        self.ocr_backend.setCurrentIndex(max(0, index))
         self.ocr_language = QLineEdit(str(self.store.value('ocr_language', 'deu+eng')))
         self.ocr_language.setMaximumWidth(110)
-        self.ocr_language.setToolTip('Installierte Tesseract-Sprachen, z.B. deu+eng')
+        self.ocr_language.setToolTip('OCR-Sprachen, z.B. deu+eng (Deutsch und Englisch)')
         self.ocr_command = QLineEdit(str(self.store.value('ocr_command', 'tesseract')))
         self.ocr_command.setToolTip('Tesseract-Programmname oder vollständiger Programmpfad')
-        for widget in (self.ocr_enabled, QLabel('Sprache'), self.ocr_language, QLabel('Programm'), self.ocr_command):
+        self.ocr_command_label = QLabel('Tesseract')
+        for widget in (self.ocr_enabled, self.ocr_backend, QLabel('Sprache'), self.ocr_language, self.ocr_command_label, self.ocr_command):
             ocr_row.addWidget(widget)
         layout.addLayout(ocr_row)
+        self.ocr_backend.currentIndexChanged.connect(self.update_ocr_controls)
+        self.update_ocr_controls()
         note = QLabel('Die Analyse sendet bis zu 16.000 Zeichen je Datei an die eingestellte Adresse. PDFs: maximal 20 Seiten.\nEin vorgeschalteter Router kann Inhalte an Cloud-Anbieter weiterleiten. Umbenennung erfolgt erst nach deinem Klick.')
         note.setWordWrap(True)
         note.setStyleSheet('color: #aeb9d2; font-size: 11px;')
@@ -163,10 +172,16 @@ class Window(QMainWindow):
         self.undo_button.clicked.connect(self.revert)
         self.all_button.clicked.connect(lambda: self.select_all(True))
         self.none_button.clicked.connect(lambda: self.select_all(False))
-        self.busy_widgets = [self.files_button, self.folder_button, self.recursive, self.clear_button, self.url, self.model, self.connect_button, self.timeout, self.template, self.all_button, self.none_button, self.analyze_button, self.rename_button, self.undo_button, self.ocr_enabled, self.ocr_language, self.ocr_command]
+        self.busy_widgets = [self.files_button, self.folder_button, self.recursive, self.clear_button, self.url, self.model, self.connect_button, self.timeout, self.template, self.all_button, self.none_button, self.analyze_button, self.rename_button, self.undo_button, self.ocr_enabled, self.ocr_language, self.ocr_command, self.ocr_backend]
+
+    def update_ocr_controls(self):
+        from .ocr import effective_backend
+        show_command = effective_backend(self.ocr_backend.currentData()) == 'tesseract'
+        self.ocr_command.setVisible(show_command)
+        self.ocr_command_label.setVisible(show_command)
 
     def settings(self):
-        settings = Settings(self.url.text().strip(), self.model.currentText().strip(), self.template.text().strip(), self.timeout.value(), self.ocr_enabled.isChecked(), self.ocr_language.text().strip(), self.ocr_command.text().strip())
+        settings = Settings(self.url.text().strip(), self.model.currentText().strip(), self.template.text().strip(), self.timeout.value(), self.ocr_enabled.isChecked(), self.ocr_language.text().strip(), self.ocr_command.text().strip(), self.ocr_backend.currentData())
         for key, value in asdict(settings).items():
             self.store.setValue(key, value)
         return settings

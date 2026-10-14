@@ -2,13 +2,17 @@
 from pathlib import Path
 from importlib.metadata import version
 import platform
+import runpy
 from PyInstaller.utils.hooks import collect_data_files, copy_metadata
 
 root = Path(SPECPATH).parent
 metadata = copy_metadata('nomi-renamer')
+# Always compile from tracked source, never reuse a developer's stale binary.
+vision_helper = runpy.run_path(str(root / 'build_support' / 'build_vision.py'))['build']()
 a = Analysis(
     [str(root / 'build_support' / 'launcher.py')],
     pathex=[str(root)],
+    binaries=[(str(vision_helper), 'nomi/bin')],
     datas=[(str(root / 'LICENSE'), '.'), (str(root / 'README.md'), '.')]
           + metadata + collect_data_files('pypdfium2_raw'),
     hiddenimports=['PIL.PdfImagePlugin', 'nomi.diagnostics'],

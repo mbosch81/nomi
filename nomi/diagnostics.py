@@ -37,7 +37,7 @@ def run_self_test(app) -> int:
                 window.revert()
                 assert hashlib.sha256(source.read_bytes()).hexdigest() == before
                 assert not target.exists()
-                result.update(ok=True, ocr=True, qt=True, rename=True, undo=True)
+                result.update(ok=True, ocr=True, ocr_backend=document.ocr_backend, qt=True, rename=True, undo=True)
             except Exception as error:
                 result.update(ok=False, error=type(error).__name__)
             finally:

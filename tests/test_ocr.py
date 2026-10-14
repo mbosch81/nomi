@@ -8,16 +8,17 @@ import threading
 import unittest
 from unittest.mock import patch
 from nomi.core import AnalysisCancelled, Settings, extract_document
-from nomi.ocr import recognize_page
+from nomi.ocr import recognize_page, effective_backend, VisionBackend, selected_backend, run_ocr
 
 HAS_RENDERER = importlib.util.find_spec('pypdfium2') is not None and importlib.util.find_spec('PIL') is not None
 HAS_TESSERACT = shutil.which('tesseract') is not None
+HAS_VISION = sys.platform == 'darwin' and (Path(__file__).resolve().parent.parent / 'nomi/bin/nomi-vision').is_file()
 
 
 class OcrTests(unittest.TestCase):
     def test_missing_command_has_actionable_error(self):
         with self.assertRaisesRegex(ValueError, 'Tesseract fehlt'):
-            recognize_page(Path('not-read.pdf'), 0, Settings(ocr_command='nomi-missing-binary'), lambda: False)
+            recognize_page(Path('not-read.pdf'), 0, Settings(ocr_command='nomi-missing-binary', ocr_backend='tesseract'), lambda: False)
 
     @unittest.skipUnless(HAS_RENDERER, 'Install .[ocr] for rendering tests')
     def setUp(self):
@@ -33,7 +34,7 @@ class OcrTests(unittest.TestCase):
         image.save(self.pdf, 'PDF', resolution=150)
         image.close()
 
-    @unittest.skipUnless(HAS_RENDERER and HAS_TESSERACT, 'Install Tesseract and .[ocr]')
+    @unittest.skipUnless(HAS_RENDERER and (HAS_VISION or HAS_TESSERACT), 'Install Tesseract and .[ocr]')
     def test_real_image_pdf_ocr_preserves_original(self):
         original = self.pdf.read_bytes()
         with self.assertRaisesRegex(ValueError, 'Kein Text'):
@@ -65,7 +66,7 @@ class OcrTests(unittest.TestCase):
             return process
         with patch('nomi.ocr.subprocess.Popen', side_effect=start):
             with self.assertRaises(AnalysisCancelled):
-                recognize_page(self.pdf, 0, Settings(ocr_command=self.slow_command()), event.is_set)
+                recognize_page(self.pdf, 0, Settings(ocr_command=self.slow_command(), ocr_backend='tesseract'), event.is_set)
         for timer in timers: timer.join()
         self.assertEqual(len(processes), 1)
         self.assertIsNotNone(processes[0][0].poll())
@@ -73,7 +74,7 @@ class OcrTests(unittest.TestCase):
 
     def test_timeout_cleans_raster_and_process(self):
         with self.assertRaises(TimeoutError):
-            recognize_page(self.pdf, 0, Settings(ocr_command=self.slow_command(), timeout=.15), lambda: False)
+            recognize_page(self.pdf, 0, Settings(ocr_command=self.slow_command(), timeout=.15, ocr_backend='tesseract'), lambda: False)
 
     def test_mixed_document_ocr_only_for_scanned_page(self):
         from pypdf import PdfReader, PdfWriter
@@ -95,9 +96,55 @@ class OcrTests(unittest.TestCase):
         self.assertTrue(result.used_ocr)
 
     def test_default_tesseract_resolves_homebrew_without_shell_path(self):
-        from nomi.ocr import recognize_page
+        from nomi.ocr import recognize_page, effective_backend, VisionBackend, selected_backend, run_ocr
         def which(command):
             return '/opt/homebrew/bin/tesseract' if command == '/opt/homebrew/bin/tesseract' else None
         with patch('nomi.ocr.shutil.which', side_effect=which):
             with self.assertRaises(AnalysisCancelled):
-                recognize_page(Path('unused.pdf'), 0, Settings(), lambda: True)
+                recognize_page(Path('unused.pdf'), 0, Settings(ocr_backend='tesseract'), lambda: True)
+
+    def test_auto_backend_selection_and_explicit_choices(self):
+        with patch('nomi.ocr.sys.platform', 'darwin'):
+            self.assertEqual(effective_backend('auto'), 'vision')
+        with patch('nomi.ocr.sys.platform', 'linux'):
+            self.assertEqual(effective_backend('auto'), 'tesseract')
+            with self.assertRaisesRegex(ValueError, 'nur unter macOS'):
+                VisionBackend().command(Path('x.png'), Settings())
+        with self.assertRaises(ValueError):
+            effective_backend('unknown')
+        self.assertEqual(effective_backend('tesseract'), 'tesseract')
+
+    @unittest.skipUnless(HAS_VISION, 'Requires compiled Vision helper on macOS')
+    def test_real_vision_never_looks_for_tesseract(self):
+        with patch('nomi.ocr.shutil.which', side_effect=AssertionError('No external OCR program allowed')):
+            result = extract_document(self.pdf, settings=Settings(ocr_enabled=True))
+        self.assertIn('Beispiel', result.text)
+        self.assertIn('14.10.2026', result.text)
+        self.assertEqual(result.ocr_backend, 'Apple Vision')
+
+    @unittest.skipUnless(HAS_VISION, 'Requires compiled Vision helper on macOS')
+    def test_vision_language_validation(self):
+        with self.assertRaisesRegex(ValueError, 'Sprache'):
+            VisionBackend().command(Path('x.png'), Settings(ocr_language='--bad'))
+        command = VisionBackend().command(Path('x.png'), Settings(ocr_language='deu+eng'))
+        self.assertEqual(command[-1], 'de-DE+en-US')
+        with self.assertRaisesRegex(ValueError, 'unterstützt'):
+            recognize_page(self.pdf, 0, Settings(ocr_backend='vision', ocr_language='zz-ZZ'), lambda: False)
+
+    def test_shared_runner_cancels_and_terminates_vision_style_command(self):
+        stopped = threading.Event()
+        actual_popen = subprocess.Popen
+        processes = []
+        timers = []
+        def start(*args, **kwargs):
+            process = actual_popen(*args, **kwargs)
+            processes.append(process)
+            timer = threading.Timer(.2, stopped.set)
+            timers.append(timer)
+            timer.start()
+            return process
+        with patch('nomi.ocr.subprocess.Popen', side_effect=start):
+            with self.assertRaises(AnalysisCancelled):
+                run_ocr([sys.executable, '-c', 'import time; time.sleep(30)'], 5, stopped.is_set, 'Apple Vision')
+        for timer in timers: timer.join()
+        self.assertIsNotNone(processes[0].poll())

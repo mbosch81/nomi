@@ -26,6 +26,7 @@ class Settings:
     ocr_enabled: bool = False
     ocr_language: str = 'deu+eng'
     ocr_command: str = 'tesseract'
+    ocr_backend: str = 'auto'
 
 class Backend(Protocol):
     def suggest(self, text: str, settings: Settings) -> dict: ...
@@ -164,11 +165,13 @@ class Extraction:
     text: str
     used_ocr: bool = False
     truncated: bool = False
+    ocr_backend: str = ''
 
 
 def extract_document(path: Path, limit: int = 16000, settings: Settings | None = None,
                      cancelled: Callable[[], bool] = lambda: False) -> Extraction:
     used_ocr = False
+    ocr_backend = ''
     truncated = False
     if path.suffix.lower() == '.pdf':
         from pypdf import PdfReader
@@ -183,9 +186,10 @@ def extract_document(path: Path, limit: int = 16000, settings: Settings | None =
                 raise AnalysisCancelled()
             text = page.extract_text() or ''
             if settings and settings.ocr_enabled and len(re.sub(r'\W', '', text)) < 30:
-                from .ocr import recognize_page
+                from .ocr import recognize_page, selected_backend
                 recognized = recognize_page(path, index, settings, cancelled)
                 used_ocr = True
+                ocr_backend = selected_backend(settings).label
                 if len(recognized.strip()) > len(text.strip()):
                     text = recognized
             parts.append(text)
@@ -206,7 +210,7 @@ def extract_document(path: Path, limit: int = 16000, settings: Settings | None =
         text = text[:limit]
     if not text.strip():
         raise ValueError('Kein Text gefunden — OCR aktivieren oder Scanqualität prüfen.')
-    return Extraction(text, used_ocr, truncated)
+    return Extraction(text, used_ocr, truncated, ocr_backend)
 
 
 def extract(path: Path, limit: int = 16000) -> str:
