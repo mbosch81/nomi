@@ -97,7 +97,7 @@ Synthetische Testdaten werden nur in temporären Ordnern erzeugt. Keine produkti
 
 ## Verifizierter Entwicklungsstand (14.10.2026)
 
-- Installation in der vorhandenen `.venv` mit Python 3.14.8, PySide6 6.10.3 und pypdf 6.20.1 abgeschlossen; `pip check` erfolgreich. Alle 33 Tests bestehen; einschließlich echter Tesseract-OCR, OCR im Qt-Worker, Prozessabbruch/-timeout, Datumsbelegung, Namenssuffixen und manuellen Konflikten. OCR-Integrationstests werden ohne optionale Bibliotheken bzw. Tesseract übersprungen.
+- Installation in der vorhandenen `.venv` mit Python 3.14.8, PySide6 6.10.3 und pypdf 6.20.1 abgeschlossen; `pip check` erfolgreich. Alle 34 Tests bestehen; einschließlich echter Tesseract-OCR, OCR im Qt-Worker, Prozessabbruch/-timeout, Datumsbelegung, Namenssuffixen und manuellen Konflikten. OCR-Integrationstests werden ohne optionale Bibliotheken bzw. Tesseract übersprungen.
 - PySide6 ist auf `>=6.9,<6.11` begrenzt: Mit 6.12.0 trat beim Schließen nach nativer Tabellenbearbeitung ein QObject-Absturz auf. Derselbe Ablauf inklusive Schließen wurde mit 6.10.3 erfolgreich wiederholt (Exit-Code 0).
 - Core-, HTTP-Vertrags- und Qt-Tests laufen mit synthetischen Dokumenten. Sie prüfen unter anderem Konflikte, bestehende Zieldateien, doppelte Quellen, Rollback und teilweise fehlgeschlagene Rückabwicklungen, veränderte Dateien, Import, Auswahl, Analyse, Modellladen und Abbruch.
 - Die macOS-Oberfläche wurde gestartet und visuell geprüft; nativer Dateiimport, manuelles Bearbeiten, Umbenennen und Rückgängig wurden am Testdokument bedient und überprüft. Drag-and-drop wird zusätzlich über Qt-Ereignisse getestet.
@@ -109,3 +109,28 @@ Synthetische Testdaten werden nur in temporären Ordnern erzeugt. Keine produkti
 ## Lizenz
 
 MIT — siehe [LICENSE](LICENSE). Die Lizenz gilt für Nomi; Abhängigkeiten und verwendete Modelle haben eigene Lizenzbedingungen.
+
+## macOS-App bauen (Version 0.2.1)
+
+```sh
+.venv/bin/python -m pip install -e '.[ocr,build]'
+.venv/bin/python -m PyInstaller --noconfirm build_support/Nomi.spec
+```
+
+Die Anwendung liegt anschließend unter `dist/Nomi.app` und lässt sich per Doppelklick starten. Python, Qt und die OCR-Python-Bibliotheken sind enthalten; Tesseract und Sprachdaten werden weiterhin separat benötigt. Beim Finder-Start werden auch die üblichen Homebrew-Pfade nach Tesseract durchsucht.
+
+Ein lokaler Build übernimmt Prozessorarchitektur und macOS-Version des Build-Rechners als konservative Mindestanforderung. Der Entwicklungsbuild wurde auf Apple Silicon/macOS 27 gebaut und ist kein getesteter universeller Intel-/ARM-Build. Für ältere Systeme auf einem passenden Build-Rechner bauen. Die GitHub-Variante wird auf dem im Workflow angegebenen macOS-Runner erstellt.
+
+Das Bundle ist lokal ad hoc signiert, jedoch nicht mit einer Apple Developer ID signiert oder notarisiert. Es ist derzeit ein Entwicklungsbuild, kein fertiger öffentlicher Installer. Ein automatischer Upload zu GitHub Releases findet nicht statt.
+
+Offline-Selbsttest für das gebaute Bundle (nur temporäre synthetische Dateien, keine Netzwerkaufrufe oder Änderungen an persönlichen Einstellungen):
+
+```sh
+dist/Nomi.app/Contents/MacOS/Nomi --self-test
+```
+
+Der Selbsttest prüft echte Tesseract-OCR, Qt, Umbenennen und Rückgängig. Tesseract mit englischen Sprachdaten muss installiert sein. Er steht auch unter `python -m nomi --self-test` zur Verfügung.
+
+## Automatische Prüfungen
+
+GitHub Actions prüft Pull Requests und Pushes mit Python 3.11/3.14 auf Ubuntu sowie Python 3.14 auf macOS. OCR und der Offline-Selbsttest gehören dazu. Nach erfolgreichen Tests wird ein macOS-Bundle gebaut, mit reduziertem Finder-ähnlichem Suchpfad geprüft und als ZIP-Artefakt am Workflow-Lauf gespeichert. Die Action-Versionen sind auf Commit-Hashes fixiert. Workflow und Build sind unter `.github/workflows/tests.yml` bzw. `build_support/Nomi.spec` beschrieben.

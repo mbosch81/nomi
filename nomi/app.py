@@ -58,7 +58,7 @@ class Worker(QThread):
                 self.result.emit(row, '', 'Fehler: ' + str(error))
 
 class Window(QMainWindow):
-    def __init__(self):
+    def __init__(self, store=None):
         super().__init__()
         self.setWindowTitle('Nomi · Jede Datei verdient einen Namen')
         self.resize(1100, 720)
@@ -66,7 +66,7 @@ class Window(QMainWindow):
         self.paths = []
         self.worker = None
         self.history = []
-        self.store = QSettings('Nomi', 'Nomi')
+        self.store = store if store is not None else QSettings('Nomi', 'Nomi')
         root = QWidget()
         self.setCentralWidget(root)
         layout = QVBoxLayout(root)
@@ -432,6 +432,9 @@ def main():
     app = QApplication(sys.argv)
     app.setStyle('Fusion')
     app.setStyleSheet(STYLE)
+    if '--self-test' in sys.argv:
+        from .diagnostics import run_self_test
+        sys.exit(run_self_test(app))
     window = Window()
     window.show()
     sys.exit(app.exec())

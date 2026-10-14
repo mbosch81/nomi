@@ -1,5 +1,6 @@
 """Real Qt event-loop checks using synthetic documents and an isolated settings file."""
 import time
+import threading
 import importlib.util
 import shutil
 import unittest
@@ -82,16 +83,24 @@ class AppTests(TestCase):
         self.assertEqual(len(self.window.paths), 3)
         self.window.model.setCurrentText('synthetic-model')
         calls = []
+        started = threading.Event()
+        release = threading.Event()
         def suggest(*args):
             calls.append(1)
-            time.sleep(.15)
+            started.set()
+            release.wait(3)
             return {'absender': 'Beispiel', 'dokumenttyp': 'Rechnung'}
         with patch('nomi.app.OllamaBackend.suggest', side_effect=suggest):
             self.click(self.window.analyze_button)
-            QTest.qWait(40)
+            deadline = time.monotonic() + 3
+            while not started.is_set() and time.monotonic() < deadline:
+                self.app.processEvents()
+                time.sleep(.01)
+            self.assertTrue(started.is_set())
             self.assertFalse(self.window.rename_button.isEnabled())
             self.assertTrue(self.window.cancel_button.isEnabled())
             self.click(self.window.cancel_button)
+            release.set()
             self.wait_idle()
         self.assertEqual(len(calls), 1)
         self.assertTrue(self.window.rename_button.isEnabled())

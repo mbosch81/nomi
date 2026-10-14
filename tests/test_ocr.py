@@ -93,3 +93,11 @@ class OcrTests(unittest.TestCase):
         self.assertIn('Native text page', result.text)
         self.assertIn('Recognized second page', result.text)
         self.assertTrue(result.used_ocr)
+
+    def test_default_tesseract_resolves_homebrew_without_shell_path(self):
+        from nomi.ocr import recognize_page
+        def which(command):
+            return '/opt/homebrew/bin/tesseract' if command == '/opt/homebrew/bin/tesseract' else None
+        with patch('nomi.ocr.shutil.which', side_effect=which):
+            with self.assertRaises(AnalysisCancelled):
+                recognize_page(Path('unused.pdf'), 0, Settings(), lambda: True)

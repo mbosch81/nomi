@@ -12,6 +12,12 @@ from .core import AnalysisCancelled, Settings
 
 def recognize_page(path: Path, index: int, settings: Settings, cancelled) -> str:
     command = shutil.which(settings.ocr_command)
+    if not command and settings.ocr_command == 'tesseract':
+        # Finder launches do not necessarily inherit the shell's Homebrew PATH.
+        for candidate in ('/opt/homebrew/bin/tesseract', '/usr/local/bin/tesseract'):
+            command = shutil.which(candidate)
+            if command:
+                break
     if not command:
         raise ValueError('Tesseract fehlt. Bitte installieren oder den Programmpfad einstellen.')
     if not re.fullmatch(r'[A-Za-z0-9_]+(?:\+[A-Za-z0-9_]+)*', settings.ocr_language):
