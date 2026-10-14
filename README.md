@@ -31,14 +31,46 @@ py -3.14 -m venv .venv
 4. Ausgewählte Dateien analysieren. Namensvorschläge prüfen, bearbeiten und unerwünschte Dateien per Checkbox abwählen.
 5. **Auswahl umbenennen**. Umbenennungsaktionen können während derselben Sitzung schrittweise rückgängig gemacht werden.
 
-Schema-Felder: `{datum}`, `{absender}`, `{dokumenttyp}`, `{titel}`. Beispiel: `{datum}_{absender}_{dokumenttyp}`. Unbekannte Angaben bleiben leer. Die Originalendung bleibt erhalten.
+Schema-Felder: `{datum}`, `{absender}`, `{dokumenttyp}`, `{titel}`, `{empfaenger}`, `{kennung}`.
 
-## Grenzen der Version 0.1
+- Standard: `{datum}_{absender}_{dokumenttyp}`
+- Mit Rechnungsnummer/anderem belegtem Kennzeichen: `{datum}_{absender}_{dokumenttyp}_{kennung}`
+- Mit Empfänger/Zweck: `{datum}_{absender}_{dokumenttyp}_{empfaenger}_{titel}`
 
-- Text-PDFs, UTF-8/Windows-1252-Texte, Markdown und CSV; noch keine OCR, Bildanalyse oder DOCX-Verarbeitung.
-- Pro Dokument maximal 16.000 Zeichen und bei PDFs die ersten 20 Seiten. Angaben außerhalb dieses Ausschnitts werden nicht berücksichtigt.
+Unbekannte Angaben und erkannte Platzhalter bleiben leer. Die Originalendung bleibt erhalten. Deutsche Datumsangaben werden in `YYYY-MM-DD` umgewandelt. Ein vorgeschlagenes Datum muss als vollständiges Datum im übermittelten Textausschnitt belegt sein; erkennbare Vertragsbeginn-/Zeitraumdaten werden weggelassen und im Status angezeigt. Diese konservative Prüfung kann auch ein korrektes Datum weglassen und ersetzt keine fachliche Kontrolle.
+
+Bei bereits belegten oder im Analyseauftrag mehrfach vorgeschlagenen Namen ergänzt Nomi sichtbare Nummern wie `_2`. Vorschläge werden nur innerhalb desselben Analyseauftrags reserviert; manuelle Änderungen und Auswahländerungen werden zusätzlich auf Konflikte geprüft. Beim tatsächlichen Umbenennen erfolgt nochmals die verbindliche Konfliktprüfung. Nummern unterscheiden Dateien, bestätigen aber nicht, ob Inhalte identisch sind.
+
+## Optionale OCR mit Tesseract
+
+OCR ist standardmäßig aus. Aktiviere **OCR für gescannte PDF-Seiten** für Bild-PDFs oder gemischte Dokumente. Nur Seiten mit weniger als 30 extrahierten Buchstaben/Ziffern werden zusätzlich erkannt. Die Original-PDF bleibt unverändert; es wird keine durchsuchbare PDF erzeugt. Erfasster Text wird wie normaler PDF-Text an das konfigurierte Backend gesendet.
+
+Installation der optionalen Python-Bibliotheken in der Projektumgebung:
+
+```sh
+.venv/bin/python -m pip install -e '.[ocr]'
+```
+
+Tesseract wird zusätzlich als Systemprogramm benötigt. Auf macOS:
+
+```sh
+brew install tesseract tesseract-lang
+```
+
+Auf Debian/Ubuntu: `sudo apt install tesseract-ocr tesseract-ocr-deu tesseract-ocr-eng`. Unter Windows Tesseract separat installieren, danach in Nomi den vollständigen Programmpfad (z.B. `C:\Program Files\Tesseract-OCR\tesseract.exe`) eintragen. In PowerShell: `.\.venv\Scripts\python.exe -m pip install -e ".[ocr]"`. Windows ist noch nicht praktisch geprüft.
+
+OCR-Sprache: standardmäßig `deu+eng`; die entsprechenden Sprachdaten müssen installiert sein (`tesseract --list-langs`). Im Feld **Programm** kann ein vollständiger Tesseract-Pfad angegeben werden, z.B. `/opt/homebrew/bin/tesseract`. Fehler bei fehlender Installation oder fehlenden Sprachdaten erscheinen in der betroffenen Tabellenzeile.
+
+Seiten werden einzeln mit bis zu 300 dpi und maximal 12 Megapixeln gerendert. Temporäre Bilder werden nach jeder Seite auch bei Abbruch/Fehler entfernt. Das eingestellte Timeout gilt je OCR-Seite sowie für die HTTP-Anfrage, nicht für das gesamte Dokument. Abbruch beendet einen laufenden Tesseract-Prozess; während des Renderns wirkt er nach der aktuellen Renderoperation. OCR-Qualität hängt von Scan, Schrift und Sprache ab; Seiten mit vorhandenem, aber fehlerhaftem Text können unter Umständen nicht als OCR-Kandidaten erkannt werden.
+
+Technische Referenzen: [Tesseract-CLI](https://tesseract-ocr.github.io/tessdoc/Command-Line-Usage.html), [PDFium-Python-API](https://pypdfium2.readthedocs.io/en/stable/python_api.html).
+
+## Grenzen der Version 0.2
+
+- Text-PDFs, optional gescannte PDF-Seiten via Tesseract, UTF-8/Windows-1252-Texte, Markdown und CSV; keine allgemeine Bildanalyse oder DOCX-Verarbeitung.
+- Pro Dokument maximal 16.000 Zeichen und bei PDFs die ersten 20 Seiten. Angaben außerhalb dieses Ausschnitts werden nicht berücksichtigt. Begrenzte PDF-/Textauszüge werden in der Tabelle kenntlich gemacht.
 - Jede Datei wird einzeln analysiert; die UI bleibt dabei bedienbar. Abbruch wirkt nach der laufenden Anfrage, deren Timeout konfigurierbar ist.
-- Die KI kann sich irren. Vorschläge müssen geprüft werden; kein Datum oder Absender wird durch die Anwendung erfunden.
+- Die KI kann sich irren. Vorschläge müssen geprüft werden. Datumsprüfung und Prompt reduzieren Fehler; Absender, Dokumenttyp, Titel und Kennzeichen können weiterhin falsch zugeordnet werden. Sammelakten und mehrere Datumsangaben bleiben besonders prüfpflichtig.
 - Ausgewählte Umbenennungen werden vorher auf Konflikte geprüft. Bestehende Dateien werden nicht überschrieben. Für die Umbenennung wird ein Hardlink mit anschließendem Entfernen des alten Verzeichniseintrags verwendet. Dateisysteme ohne Hardlink-Unterstützung (z. B. manche USB-/Netzlaufwerke) werden mit einem Fehler abgewiesen.
 - Eine Fehlersituation führt zu einem bestmöglichen Rollback. Bei unvollständiger Rückabwicklung werden die verbleibenden Umbenennungen gemeldet und in der Sitzungshistorie zur Wiederherstellung behalten. Gleichzeitige externe Dateiänderungen und Stromausfälle sind nicht transaktional abgesichert.
 - Rückgängig verweigert die Aktion bei veränderten Dateien oder neu belegten Originalnamen. Historie ist derzeit nur im Arbeitsspeicher vorhanden.
@@ -52,6 +84,7 @@ Dokumenttext wird an die eingestellte Backend-Adresse gesendet. Ein Ollama-kompa
 
 - `nomi/core.py`: Extraktion, Backend-Protokoll, Ollama-Anbindung, Namensvalidierung und Umbenennung.
 - `nomi/app.py`: PySide6-Oberfläche und sequenzieller Analyse-Worker.
+- `nomi/ocr.py`: optionale PDFium-Rasterung und abbrechbare Tesseract-Prozesse.
 - Die Provider-Grenze ermöglicht später eine lokale llama.cpp-Implementierung.
 
 ## Tests
@@ -64,12 +97,14 @@ Synthetische Testdaten werden nur in temporären Ordnern erzeugt. Keine produkti
 
 ## Verifizierter Entwicklungsstand (14.10.2026)
 
-- Installation in der vorhandenen `.venv` mit Python 3.14.8, PySide6 6.10.3 und pypdf 6.20.1 abgeschlossen; `pip check` erfolgreich. Alle 19 Tests bestehen.
+- Installation in der vorhandenen `.venv` mit Python 3.14.8, PySide6 6.10.3 und pypdf 6.20.1 abgeschlossen; `pip check` erfolgreich. Alle 33 Tests bestehen; einschließlich echter Tesseract-OCR, OCR im Qt-Worker, Prozessabbruch/-timeout, Datumsbelegung, Namenssuffixen und manuellen Konflikten. OCR-Integrationstests werden ohne optionale Bibliotheken bzw. Tesseract übersprungen.
 - PySide6 ist auf `>=6.9,<6.11` begrenzt: Mit 6.12.0 trat beim Schließen nach nativer Tabellenbearbeitung ein QObject-Absturz auf. Derselbe Ablauf inklusive Schließen wurde mit 6.10.3 erfolgreich wiederholt (Exit-Code 0).
 - Core-, HTTP-Vertrags- und Qt-Tests laufen mit synthetischen Dokumenten. Sie prüfen unter anderem Konflikte, bestehende Zieldateien, doppelte Quellen, Rollback und teilweise fehlgeschlagene Rückabwicklungen, veränderte Dateien, Import, Auswahl, Analyse, Modellladen und Abbruch.
 - Die macOS-Oberfläche wurde gestartet und visuell geprüft; nativer Dateiimport, manuelles Bearbeiten, Umbenennen und Rückgängig wurden am Testdokument bedient und überprüft. Drag-and-drop wird zusätzlich über Qt-Ereignisse getestet.
-- Die Ollama-API wurde gegen einen lokalen synthetischen HTTP-Server geprüft. Noch kein Test der Modellgenerierung mit einem echten Ollama-Backend; Qualität, Latenz und modellspezifische Unterstützung strukturierter Antworten bleiben offen.
-- Kein OCR- oder Windows-Plattformtest. Abbruch wartet weiterhin auf das Ende der laufenden Anfrage (bis zum eingestellten Timeout).
+- Die Ollama-API wurde zusätzlich mit einem echten LAN-Ollama und `mistral:latest` geprüft: strukturierte Antworten und vollständige Extraktion/Generierung/Umbenennung/Rückgängig für synthetische Text-PDFs, TXT, Markdown und CSV erfolgreich. Erster Aufruf etwa 13 s, Folgeaufrufe etwa 0,5–0,7 s (kleiner Testdatensatz, keine allgemeine Leistungsgarantie).
+- Der echte Qt-Worker wurde gegen dieses Backend geprüft: Modellliste laden, Abbruch nach laufender Anfrage bei weiterhin reagierender Oberfläche, ungültiges Modell und nicht erreichbare Adresse. Ein HTTP-Timeout wurde zusätzlich mit künstlich verkürzter Frist ausgelöst.
+- Nachprüfung mit 28 privaten lokalen PDFs: 28 formal gültige Vorschläge, davon vier Dokumente mit OCR; keine Originale verändert (SHA-256-Prüfung). Sieben Datumsvorschläge wurden konservativ weggelassen. Private Dokumente, Inhalte und Auswertungen sind nicht Bestandteil dieses Repositorys.
+- macOS: Tesseract 5.5.3 mit deu/eng, PDFium und Pillow praktisch geprüft. Andere Modelle, schwierige Scans und Windows benötigen weitere Tests. Laufende HTTP-Anfragen enden bei Abbruch weiterhin erst mit Antwort oder Timeout.
 
 ## Lizenz
 
