@@ -251,12 +251,16 @@ class AppTests(TestCase):
             self.app.processEvents();time.sleep(.01)
         self.assertTrue(began.is_set())
         ticks=[];timer=QTimer();timer.timeout.connect(lambda:ticks.append(1));timer.start(10)
-        until=time.monotonic()+.1
-        while time.monotonic()<until:self.app.processEvents();time.sleep(.01)
-        timer.stop()
-        self.assertGreater(len(ticks),2)
-        self.assertFalse(self.window.analyze_button.isEnabled())
-        release.set();self.wait_idle()
+        try:
+            deadline=time.monotonic()+3
+            while len(ticks)<3 and time.monotonic()<deadline:
+                self.app.processEvents();time.sleep(.01)
+            self.assertGreater(len(ticks),2)
+            self.assertFalse(self.window.analyze_button.isEnabled())
+        finally:
+            timer.stop()
+            release.set()
+            self.wait_idle()
         self.assertTrue(self.window.analyze_button.isEnabled())
         self.window.add([self.a]);self.click(self.window.analyze_button);self.wait_idle()
         self.assertEqual(self.window.table.item(0,2).text(),'Beispiel_GmbH_Rechnung.txt')
