@@ -152,16 +152,16 @@ class AppTests(TestCase):
         self.window.gguf.setText(str(model))
         manager=self.window.model_manager
         with patch('nomi.model_manager.model_directory',return_value=models):
-            manager.show();self.app.processEvents()
-            self.assertEqual(manager.table.rowCount(),1)
-            self.assertIn('GB',manager.table.item(0,1).text())
+            manager.open_manager();self.app.processEvents()
+            self.assertEqual(manager.list.count(),1)
+            self.assertIn('GB',manager.list.item(0).text())
             with patch.object(self.window,'start_local_model') as start:
                 manager.load_selected()
                 start.assert_called_once_with()
             self.assertEqual(self.window.gguf.text(),str(model))
             self.window.local_engine.model=model
             manager.refresh()
-            self.assertEqual(manager.table.item(0,2).text(),'Geladen')
+            self.assertIn('Geladen',manager.list.item(0).text())
             self.assertFalse(manager.remove.isEnabled())
             manager.unload_model()
             self.assertIsNone(self.window.local_engine.model)

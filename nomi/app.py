@@ -199,11 +199,13 @@ class Window(QMainWindow):
         self.download_choice.setAccessibleName('Download-Modell')
         for model in model_catalog():
             self.download_choice.addItem(model.label, model.key)
+        self.download_choice.setCurrentIndex(-1)
         for index, model in enumerate(model_catalog()):
             if Path(self.gguf.text()).name == model.filename:
                 self.download_choice.setCurrentIndex(index)
                 break
         self.download_button = QPushButton('Ausgewähltes Modell herunterladen / laden')
+        self.download_button.setEnabled(self.download_choice.currentIndex() >= 0)
         self.local_load_button = QPushButton('Modell laden')
         self.autoload = QCheckBox('Beim Start laden')
         self.autoload.setChecked(str(self.store.value('llama_autoload', 'true')).lower() in {'true', '1'})
@@ -219,7 +221,7 @@ class Window(QMainWindow):
         local_row.addLayout(model_actions)
         local_row.addWidget(self.autoload)
         self.manage_models = QPushButton('Installierte Modelle verwalten …')
-        self.manage_models.clicked.connect(lambda: self.model_manager.show())
+        self.manage_models.clicked.connect(lambda: self.model_manager.open_manager())
         local_row.addWidget(self.manage_models)
         schema_group = QGroupBox('Dateinamen')
         schema_row = QFormLayout(schema_group)
@@ -400,6 +402,12 @@ class Window(QMainWindow):
             QTimer.singleShot(0, self.auto_load)
 
     def model_path_changed(self):
+        index = next((i for i, model in enumerate(model_catalog())
+                      if Path(self.gguf.text()).name == model.filename), -1)
+        self.download_choice.blockSignals(True)
+        self.download_choice.setCurrentIndex(index)
+        self.download_choice.blockSignals(False)
+        self.download_button.setEnabled(not self.busy() and index >= 0)
         if self.local_engine.model != Path(self.gguf.text()).expanduser().absolute():
             self._local_backend = None
             if self.engine.currentData() == 'llama':
@@ -468,6 +476,7 @@ class Window(QMainWindow):
         self.cancel_button.setEnabled(value)
         self.refresh_analysis_enabled()
         self.model_manager.update_actions()
+        self.download_button.setEnabled(not value and bool(self.download_choice.currentData()))
 
     def dragEnterEvent(self, event):
         if not self.busy() and event.mimeData().hasUrls() and any(u.isLocalFile() for u in event.mimeData().urls()):

@@ -1,18 +1,19 @@
 """Local model inventory; removal goes to the OS trash, never permanent delete."""
 from pathlib import Path
 from PySide6.QtCore import QFile
-from PySide6.QtWidgets import (QDialog, QVBoxLayout, QHBoxLayout, QTableWidget,
-                              QTableWidgetItem, QPushButton, QMessageBox, QHeaderView)
+from PySide6.QtWidgets import (QDialog, QVBoxLayout, QHBoxLayout, QListWidget,
+                              QListWidgetItem, QPushButton, QMessageBox, QLabel)
 from .local_model import model_directory
 
 
-def installed_models(extra=None):
+def installed_models(extra=None, active=None):
     folder = model_directory()
     paths = set(p for p in folder.glob('*.gguf') if p.is_file() and not p.is_symlink())
-    if extra:
-        path = Path(extra).expanduser().absolute()
-        if path.is_file() and not path.is_symlink():
-            paths.add(path)
+    for location in (extra, active):
+        if location:
+            path = Path(location).expanduser().absolute()
+            if path.is_file() and not path.is_symlink():
+                paths.add(path)
     return sorted(paths)
 
 
@@ -34,13 +35,10 @@ class ModelManager(QDialog):
         self.setWindowTitle('Nomi · Modelle verwalten')
         self.resize(850, 380)
         layout = QVBoxLayout(self)
-        self.table = QTableWidget(0, 3)
-        self.table.setHorizontalHeaderLabels(['Modell', 'Speicherbedarf', 'Status'])
-        self.table.horizontalHeader().setSectionResizeMode(0, QHeaderView.ResizeMode.Stretch)
-        self.table.setSelectionBehavior(QTableWidget.SelectionBehavior.SelectRows)
-        self.table.setSelectionMode(QTableWidget.SelectionMode.SingleSelection)
-        self.table.setEditTriggers(QTableWidget.EditTrigger.NoEditTriggers)
-        layout.addWidget(self.table)
+        layout.addWidget(QLabel('Installierte Modelle · Größe und Ladezustand'))
+        self.list = QListWidget()
+        self.list.setAccessibleName('Installierte Modelle')
+        layout.addWidget(self.list)
         actions = QHBoxLayout()
         self.use = QPushButton('Auswahl laden')
         self.unload = QPushButton('Modell entladen')
@@ -55,13 +53,13 @@ class ModelManager(QDialog):
         self.unload.clicked.connect(self.unload_model)
         self.remove.clicked.connect(self.remove_selected)
         self.close_button.clicked.connect(self.close)
-        self.table.itemSelectionChanged.connect(self.update_actions)
+        self.list.itemSelectionChanged.connect(self.update_actions)
         self.paths = []
 
     def refresh(self):
         current = self.selected()
-        self.paths = installed_models(self.window.gguf.text())
-        self.table.setRowCount(len(self.paths))
+        self.paths = installed_models(self.window.gguf.text(), self.window.local_engine.model)
+        self.list.clear()
         active = self.window.local_engine.model
         for row, path in enumerate(self.paths):
             try:
@@ -71,15 +69,15 @@ class ModelManager(QDialog):
             status = 'Geladen' if active and path == Path(active) else 'Installiert'
             if path.parent.resolve() != model_directory().resolve():
                 status += ' · externer Speicherort'
-            for col, value in enumerate((path.name, f'{size/1_000_000_000:.2f} GB', status)):
-                item = QTableWidgetItem(value);item.setToolTip(str(path))
-                self.table.setItem(row, col, item)
+            item = QListWidgetItem(f'{path.name}\n{size/1_000_000_000:.2f} GB · {status}')
+            item.setToolTip(str(path))
+            self.list.addItem(item)
         if self.paths:
-            self.table.selectRow(self.paths.index(current) if current in self.paths else 0)
+            self.list.setCurrentRow(self.paths.index(current) if current in self.paths else 0)
         self.update_actions()
 
     def selected(self):
-        row = self.table.currentRow()
+        row = self.list.currentRow()
         return self.paths[row] if 0 <= row < len(self.paths) else None
 
     def update_actions(self):
@@ -119,6 +117,9 @@ class ModelManager(QDialog):
             QMessageBox.warning(self, 'Modell entfernen', str(error))
         self.refresh()
 
-    def showEvent(self, event):
-        super().showEvent(event)
+    def open_manager(self):
+        # Populate before exposing the native window/accessibility hierarchy.
         self.refresh()
+        self.show()
+        self.raise_()
+        self.activateWindow()
