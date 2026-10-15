@@ -4,7 +4,8 @@ from pathlib import Path
 from dataclasses import asdict
 from PySide6.QtCore import Qt, QThread, Signal, QSettings, QTimer
 from PySide6.QtGui import QAction, QKeySequence
-from PySide6.QtWidgets import (QApplication, QMainWindow, QWidget, QVBoxLayout, QHBoxLayout, QLabel, QPushButton, QTableWidget, QTableWidgetItem, QHeaderView, QFileDialog, QCheckBox, QLineEdit, QComboBox, QSpinBox, QProgressBar, QMessageBox, QDialog, QDialogButtonBox, QGroupBox, QFormLayout)
+from PySide6.QtWidgets import (QApplication, QMainWindow, QWidget, QVBoxLayout, QHBoxLayout, QLabel, QPushButton, QTableWidget, QTableWidgetItem, QHeaderView, QFileDialog, QCheckBox, QLineEdit, QComboBox, QSpinBox, QProgressBar, QMessageBox, QDialog, QDialogButtonBox, QGroupBox, QFormLayout, QSplitter)
+from .preview import PreviewPanel
 from .llama_backend import LocalEngine
 from .local_model import default_model_path, download_model, model_catalog, model_directory
 from .core import Settings, OllamaBackend, collect, make_name, rename_batch, undo, validate_template, RenameError, extract_document, AnalysisCancelled, available_name, validate_name
@@ -98,7 +99,7 @@ class Window(QMainWindow):
     def __init__(self, store=None):
         super().__init__()
         self.setWindowTitle('Nomi · Jede Datei verdient einen Namen')
-        self.resize(1100, 720)
+        self.resize(1380, 820)
         self.setAcceptDrops(True)
         self.paths = []
         self.worker = None
@@ -258,7 +259,15 @@ class Window(QMainWindow):
             self.table.horizontalHeader().setSectionResizeMode(col, QHeaderView.ResizeMode.Stretch)
         self.table.setAlternatingRowColors(True)
         self.table.itemChanged.connect(self.changed)
-        layout.addWidget(self.table, 1)
+        self.preview = PreviewPanel()
+        self.preview.name_edited.connect(self.edit_preview_name)
+        self.splitter = QSplitter(Qt.Orientation.Horizontal)
+        self.splitter.addWidget(self.table)
+        self.splitter.addWidget(self.preview)
+        self.splitter.setChildrenCollapsible(False)
+        self.splitter.setSizes([820, 500])
+        layout.addWidget(self.splitter, 1)
+        self.table.currentCellChanged.connect(lambda *_: self.update_preview())
         actions = QHBoxLayout()
         self.all_button = QPushButton('Alle auswählen')
         self.none_button = QPushButton('Alle abwählen')
@@ -403,6 +412,7 @@ class Window(QMainWindow):
             widget.setEnabled(not value)
         self.undo_button.setEnabled(not value and bool(self.history))
         self.table.setEnabled(not value)
+        self.preview.name.setEnabled(not value and self.preview.path is not None)
         self.cancel_button.setEnabled(value)
         self.refresh_analysis_enabled()
 
@@ -448,9 +458,24 @@ class Window(QMainWindow):
                 item.setToolTip(str(path))
                 self.table.setItem(row, col, item)
         self.table.blockSignals(False)
+        if self.paths and self.table.currentRow() < 0:
+            self.table.setCurrentCell(0, 1)
         self.status.setText(f'{len(self.paths)} Dateien · Keine Dateien wurden verändert.')
 
+    def edit_preview_name(self, name):
+        row = self.table.currentRow()
+        if not self.busy() and 0 <= row < len(self.paths):
+            self.table.item(row, 2).setText(name)
+
+    def update_preview(self):
+        row = self.table.currentRow()
+        self.preview.show_path(self.paths[row] if 0 <= row < len(self.paths) else None)
+        if 0 <= row < len(self.paths):
+            self.preview.name.setText(self.table.item(row, 2).text())
+            self.preview.name.setEnabled(not self.busy())
+
     def clear(self):
+        self.preview.show_path(None)
         self.paths.clear()
         self.table.setRowCount(0)
         self.status.setText('Liste geleert. Die Dateien bleiben erhalten.')
@@ -464,6 +489,8 @@ class Window(QMainWindow):
 
     def changed(self, item):
         if item.column() == 2:
+            if item.row() == self.table.currentRow():
+                self.preview.name.setText(item.text())
             self.table.item(item.row(), 3).setText('Manuell bearbeitet — wird beim Umbenennen geprüft')
         if item.column() in (0, 2):
             self.check_conflicts()
@@ -547,6 +574,8 @@ class Window(QMainWindow):
         self.table.item(row, 3).setText(status)
         self.table.item(row, 3).setToolTip(status)
         self.table.blockSignals(False)
+        if row == self.table.currentRow():
+            self.preview.name.setText(name)
         self.check_conflicts()
         self.progress.setValue(self.progress.value() + 1)
 
@@ -604,6 +633,7 @@ class Window(QMainWindow):
             self.table.item(row, 1).setText(self.paths[row].name)
             self.table.item(row, 1).setToolTip(str(self.paths[row]))
             self.table.item(row, 3).setText('Umbenannt' if path in mapping else 'Unverändert')
+        self.update_preview()
         self.undo_button.setEnabled(bool(self.history))
         self.status.setText(('Aktion fehlgeschlagen · ' + failure) if failure else f'{len(records)} Dateien umbenannt · Rückgängig ist in dieser Sitzung möglich.')
 
@@ -634,6 +664,7 @@ class Window(QMainWindow):
                 self.table.item(row, 1).setText(mapping[path].name)
                 self.table.item(row, 1).setToolTip(str(mapping[path]))
                 self.table.item(row, 3).setText('Umbenennung rückgängig gemacht')
+        self.update_preview()
         self.undo_button.setEnabled(bool(self.history))
         self.status.setText(('Rückgängig unvollständig · ' + failure) if failure else f'{len(records)} Umbenennungen rückgängig gemacht.')
 

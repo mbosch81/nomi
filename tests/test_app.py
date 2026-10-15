@@ -94,6 +94,24 @@ class AppTests(TestCase):
         self.window.download_choice.setCurrentIndex(self.window.download_choice.findData('qwen'))
         self.assertIn('Qwen3-4B-Q4_K_M.gguf', self.window.gguf.text())
 
+    def test_preview_name_edit_tracks_table_rename_and_undo(self):
+        self.window.add([self.a])
+        self.window.table.setCurrentCell(0, 1)
+        self.window.preview.name.setText('Geprueft.txt')
+        self.window.preview.name.textEdited.emit('Geprueft.txt')
+        self.assertEqual(self.window.table.item(0, 2).text(), 'Geprueft.txt')
+        self.window.table.item(0, 2).setText('Rechnung.txt')
+        self.assertEqual(self.window.preview.name.text(), 'Rechnung.txt')
+        self.window.rename()
+        self.assertEqual(self.window.preview.path, self.a.with_name('Rechnung.txt'))
+        self.window.revert()
+        self.assertEqual(self.window.preview.path, self.a)
+        self.window.set_busy(True)
+        self.assertFalse(self.window.preview.name.isEnabled())
+        self.window.set_busy(False)
+        self.window.clear()
+        self.assertIsNone(self.window.preview.path)
+
     def test_import_edit_select_rename_undo(self):
         with patch.object(QFileDialog, 'getOpenFileNames', return_value=([str(self.a), str(self.b)], '')):
             self.click(self.window.files_button)
