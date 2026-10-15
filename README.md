@@ -93,9 +93,9 @@ Vision verwendet die genaue Erkennung mit Sprachkorrektur, OCR-Revision 3 und CP
 
 Technische Referenzen: [Apple Vision](https://developer.apple.com/documentation/vision/recognizing-text-in-images), [Tesseract-CLI](https://tesseract-ocr.github.io/tessdoc/Command-Line-Usage.html), [PDFium-Python-API](https://pypdfium2.readthedocs.io/en/stable/python_api.html).
 
-## Grenzen der Version 0.4
+## Grenzen der Version 0.5
 
-- Text-PDFs, optional gescannte PDF-Seiten via Apple Vision oder Tesseract, UTF-8/Windows-1252-Texte, Markdown und CSV; keine allgemeine Bildanalyse oder DOCX-Verarbeitung.
+- Text-PDFs, optional gescannte PDF-Seiten via Apple Vision oder Tesseract, UTF-8/Windows-1252-Texte, Markdown und CSV; zusätzlich PNG- und JPEG-Scans bei aktivierter OCR; keine allgemeine Bildanalyse oder DOCX-Verarbeitung.
 - Pro Dokument maximal 16.000 Zeichen und bei PDFs die ersten 20 Seiten. Angaben außerhalb dieses Ausschnitts werden nicht berücksichtigt. Begrenzte PDF-/Textauszüge werden in der Tabelle kenntlich gemacht.
 - Jede Datei wird einzeln analysiert; die UI bleibt dabei bedienbar. Abbruch wirkt nach der laufenden Anfrage, deren Timeout konfigurierbar ist.
 - Die KI kann sich irren. Vorschläge müssen geprüft werden. Datumsprüfung und Prompt reduzieren Fehler; Absender, Dokumenttyp, Titel und Kennzeichen können weiterhin falsch zugeordnet werden. Sammelakten und mehrere Datumsangaben bleiben besonders prüfpflichtig.
@@ -128,7 +128,7 @@ Synthetische Testdaten werden nur in temporären Ordnern erzeugt. Keine produkti
 
 ## Verifizierter Entwicklungsstand (14.10.2026)
 
-- Installation in der vorhandenen `.venv` mit Python 3.14.8, PySide6 6.10.3 und pypdf 6.20.1 abgeschlossen; `pip check` erfolgreich. Alle 55 Tests bestehen; einschließlich echter Vision-OCR, optionaler Tesseract-OCR, OCR im Qt-Worker, Prozessabbruch/-timeout, verifiziertem Modelldownload, lokalem Autoload, Prozesswechsel, Datumsbelegung, Namenssuffixen und manuellen Konflikten. Plattformspezifische OCR-Integrationstests werden ohne die passenden Bibliotheken/Backends übersprungen. Die macOS-CI baut und prüft Vision ohne Tesseract-Installation; die Linux-CI prüft Tesseract.
+- Installation in der vorhandenen `.venv` mit Python 3.14.8, PySide6 6.10.3 und pypdf 6.20.1 abgeschlossen; `pip check` erfolgreich. Alle 59 Tests bestehen; einschließlich echter Vision-OCR, optionaler Tesseract-OCR, OCR im Qt-Worker, Prozessabbruch/-timeout, verifiziertem Modelldownload, lokalem Autoload, Prozesswechsel, Datumsbelegung, Namenssuffixen und manuellen Konflikten. Plattformspezifische OCR-Integrationstests werden ohne die passenden Bibliotheken/Backends übersprungen. Die macOS-CI baut und prüft Vision ohne Tesseract-Installation; die Linux-CI prüft Tesseract.
 - PySide6 ist auf `>=6.9,<6.11` begrenzt: Mit 6.12.0 trat beim Schließen nach nativer Tabellenbearbeitung ein QObject-Absturz auf. Derselbe Ablauf inklusive Schließen wurde mit 6.10.3 erfolgreich wiederholt (Exit-Code 0).
 - Core-, HTTP-Vertrags- und Qt-Tests laufen mit synthetischen Dokumenten. Sie prüfen unter anderem Konflikte, bestehende Zieldateien, doppelte Quellen, Rollback und teilweise fehlgeschlagene Rückabwicklungen, veränderte Dateien, Import, Auswahl, Analyse, Modellladen und Abbruch.
 - Die macOS-Oberfläche wurde gestartet und visuell geprüft; nativer Dateiimport, manuelles Bearbeiten, Umbenennen und Rückgängig wurden am Testdokument bedient und überprüft. Drag-and-drop wird zusätzlich über Qt-Ereignisse getestet.
@@ -141,7 +141,7 @@ Synthetische Testdaten werden nur in temporären Ordnern erzeugt. Keine produkti
 
 MIT — siehe [LICENSE](LICENSE). Die Lizenz gilt für Nomi; Abhängigkeiten und verwendete Modelle haben eigene Lizenzbedingungen.
 
-## macOS-App bauen (Version 0.4.3)
+## macOS-App bauen (Version 0.5.0)
 
 ```sh
 .venv/bin/python -m pip install -e '.[ocr,build]'
@@ -181,3 +181,7 @@ Lokal mit dem echten Standardmodell und fertigem Bundle geprüft: automatisches 
 ### Einstellungen
 
 Das Zahnrad oben rechts öffnet die Einstellungen. Backend, Modell, Namensschema, Zeitlimit und OCR werden auch über **Einstellungen → Einstellungen …** konfiguriert. Auf macOS liegt der Eintrag im Nomi-App-Menü und ist mit **⌘,** erreichbar. Änderungen gelten direkt und werden beim Schließen des Einstellungsfensters gespeichert. Während laufender Analyse oder Modellinitialisierung sind die betroffenen Felder gesperrt. Im Hauptfenster bleiben Import, Dateiliste, Analyse und Umbenennung.
+
+### PNG- und JPEG-Scans
+
+PNG, JPG und JPEG können über Dateidialog und Drag-and-drop importiert werden. Dafür OCR in den Einstellungen aktivieren. Die Texterkennung arbeitet im Analyse-Worker; Bildinhalte werden nicht an ein Vision-Sprachmodell gesendet. EXIF-Drehung wird berücksichtigt, Transparenz für OCR weiß hinterlegt und große Bilder auf maximal 12 Megapixel verkleinert. Eingaben über 48 Megapixel werden abgewiesen. Die Normalisierung erfolgt ausschließlich an temporären Kopien; Originaldateien und Dateiendungen bleiben erhalten.

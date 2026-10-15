@@ -239,6 +239,28 @@ class AppTests(TestCase):
         self.assertEqual(self.window.table.item(0, 2).text(), 'Rechnung.pdf')
         self.assertEqual(source.read_bytes(), original)
 
+    @unittest.skipUnless((shutil.which('tesseract') or (Path(__file__).resolve().parent.parent / 'nomi/bin/nomi-vision').is_file()) and importlib.util.find_spec('pypdfium2') and importlib.util.find_spec('PIL'), 'Install Tesseract and .[ocr]')
+    def test_real_image_ocr_in_ui_worker(self):
+        from PIL import Image, ImageDraw, ImageFont
+        image = Image.new('RGB', (1400, 500), 'white')
+        draw = ImageDraw.Draw(image)
+        draw.text((60, 80), 'Rechnung Beispiel GmbH', fill='black', font=ImageFont.load_default(size=55))
+        source = self.root/'scan.png'
+        image.save(source)
+        image.close()
+        original = source.read_bytes()
+        self.window.add([source])
+        self.window.ocr_enabled.setChecked(True)
+        self.window.ocr_language.setText('eng')
+        self.window.model.setCurrentText('synthetic-model')
+        with patch('nomi.app.OllamaBackend.suggest', return_value={'dokumenttyp': 'Rechnung'}) as suggest:
+            self.click(self.window.analyze_button)
+            self.wait_idle(timeout=45)  # Native framework cold-start can exceed five seconds.
+        self.assertIn('Beispiel', suggest.call_args.args[0])
+        self.assertIn('OCR', self.window.table.item(0, 3).text())
+        self.assertEqual(self.window.table.item(0, 2).text(), 'Rechnung.png')
+        self.assertEqual(source.read_bytes(), original)
+
     def test_ocr_backend_controls_and_settings(self):
         from nomi.ocr import effective_backend
         self.assertEqual(self.window.ocr_backend.currentData(), 'auto')

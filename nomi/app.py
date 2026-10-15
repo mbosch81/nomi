@@ -126,7 +126,7 @@ class Window(QMainWindow):
         header.addWidget(self.settings_button)
         layout.addLayout(header)
         layout.addWidget(QLabel('Jede Datei verdient einen Namen.'))
-        self.drop_hint = QLabel('Dateien oder Ordner hierher ziehen · PDF, TXT, Markdown und CSV')
+        self.drop_hint = QLabel('Dateien oder Ordner hierher ziehen · PDF, PNG, JPEG, TXT, Markdown und CSV')
         self.drop_hint.setStyleSheet('border: 2px dashed #55618a; border-radius: 12px; padding: 22px; color: #bec8e5;')
         self.drop_hint.setAlignment(Qt.AlignmentFlag.AlignCenter)
         layout.addWidget(self.drop_hint)
@@ -221,7 +221,7 @@ class Window(QMainWindow):
         ocr_group = QGroupBox('Texterkennung')
         ocr_row = QFormLayout(ocr_group)
         settings_layout.addWidget(ocr_group)
-        self.ocr_enabled = QCheckBox('OCR für gescannte PDF-Seiten')
+        self.ocr_enabled = QCheckBox('OCR für PDF- und Bildscans')
         self.ocr_enabled.setChecked(str(self.store.value('ocr_enabled', 'false')).lower() in {'true', '1'})
         self.ocr_backend = QComboBox()
         self.ocr_backend.addItem('Automatisch', 'auto')
@@ -416,7 +416,7 @@ class Window(QMainWindow):
             event.acceptProposedAction()
 
     def choose_files(self):
-        files, _ = QFileDialog.getOpenFileNames(self, 'Dateien hinzufügen', '', 'Dokumente (*.pdf *.txt *.md *.csv)')
+        files, _ = QFileDialog.getOpenFileNames(self, 'Dateien hinzufügen', '', 'Dokumente (*.pdf *.png *.jpg *.jpeg *.txt *.md *.csv)')
         self.add([Path(f) for f in files])
 
     def choose_folder(self):

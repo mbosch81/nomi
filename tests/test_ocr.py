@@ -32,6 +32,10 @@ class OcrTests(unittest.TestCase):
         draw.text((60, 80), 'Rechnung Beispiel GmbH', fill='black', font=ImageFont.load_default(size=55))
         draw.text((60, 180), 'Datum: 14.10.2026', fill='black', font=ImageFont.load_default(size=55))
         image.save(self.pdf, 'PDF', resolution=150)
+        self.png = self.root/'scan.png'
+        self.jpg = self.root/'scan.jpg'
+        image.save(self.png)
+        image.save(self.jpg)
         image.close()
 
     @unittest.skipUnless(HAS_RENDERER and (HAS_VISION or HAS_TESSERACT), 'Install Tesseract and .[ocr]')
@@ -148,3 +152,44 @@ class OcrTests(unittest.TestCase):
                 run_ocr([sys.executable, '-c', 'import time; time.sleep(30)'], 5, stopped.is_set, 'Apple Vision')
         for timer in timers: timer.join()
         self.assertIsNotNone(processes[0].poll())
+
+    @unittest.skipUnless(HAS_RENDERER and (HAS_VISION or HAS_TESSERACT), 'Needs OCR backend')
+    def test_real_png_jpeg_ocr_preserves_sources(self):
+        for path in (self.png, self.jpg):
+            with self.subTest(format=path.suffix):
+                original = path.read_bytes()
+                with self.assertRaisesRegex(ValueError, 'OCR'):
+                    extract_document(path)
+                result = extract_document(path, settings=Settings(ocr_enabled=True, ocr_language='eng'))
+                self.assertIn('Beispiel', result.text)
+                self.assertTrue(result.used_ocr)
+                self.assertEqual(path.read_bytes(), original)
+
+    def test_image_cancel_and_corruption_never_call_ocr_process(self):
+        from nomi.ocr import recognize_image
+        settings = Settings(ocr_enabled=True)
+        self.png.write_bytes(b'not an image')
+        with patch('nomi.ocr.selected_backend') as backend, patch('nomi.ocr.run_ocr') as run:
+            with self.assertRaises(AnalysisCancelled):
+                recognize_image(self.png, settings, lambda: True)
+            with self.assertRaisesRegex(ValueError, 'beschädigt'):
+                recognize_image(self.png, settings, lambda: False)
+            run.assert_not_called()
+
+    def test_image_normalization_applies_rotation_and_white_background(self):
+        from PIL import Image
+        from nomi.ocr import recognize_image
+        image = Image.new('RGBA', (20, 30), (0, 0, 0, 0))
+        exif = Image.Exif(); exif[274] = 6
+        image.save(self.png, exif=exif)
+        image.close()
+        original = self.png.read_bytes()
+        def inspect(command, timeout, cancelled, label):
+            with Image.open(command[0]) as normalized:
+                self.assertEqual(normalized.size, (30, 20))
+                self.assertEqual(normalized.getpixel((0, 0)), (255, 255, 255))
+            return 'Rechnung'
+        with patch('nomi.ocr.selected_backend') as backend, patch('nomi.ocr.run_ocr', side_effect=inspect):
+            backend.return_value.command.side_effect = lambda path, settings: [str(path)]
+            self.assertEqual(recognize_image(self.png, Settings(), lambda: False), 'Rechnung')
+        self.assertEqual(self.png.read_bytes(), original)

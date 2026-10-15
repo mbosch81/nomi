@@ -127,3 +127,34 @@ def recognize_page(path: Path, index: int, settings: Settings, cancelled) -> str
             raise AnalysisCancelled()
         # No shell; stderr and document content are never logged.
         return run_ocr(backend.command(image_path, settings), settings.timeout, cancelled, backend.label)
+
+
+def recognize_image(path: Path, settings: Settings, cancelled) -> str:
+    """Normalize a scan copy for OCR; never write to the imported image."""
+    backend = selected_backend(settings)
+    backend.command(Path('scan.png'), settings)
+    try:
+        from PIL import Image, ImageOps, UnidentifiedImageError
+    except ImportError:
+        raise ValueError('OCR-Zusatz fehlt. Bitte Nomi mit pip install -e ".[ocr]" installieren.')
+    if cancelled():
+        raise AnalysisCancelled()
+    with TemporaryDirectory(prefix='nomi-image-ocr-') as folder:
+        image_path = Path(folder) / 'scan.png'
+        try:
+            with Image.open(path) as source:
+                if source.format not in {'PNG', 'JPEG'}:
+                    raise ValueError('Nur PNG- und JPEG-Bilddateien werden unterstützt.')
+                if source.width * source.height > 48_000_000:
+                    raise ValueError('Bild ist zu groß (maximal 48 Megapixel).')
+                with ImageOps.exif_transpose(source) as oriented:
+                    scale = min(1, math.sqrt(12_000_000 / max(oriented.width * oriented.height, 1)))
+                    oriented.thumbnail((max(1, int(oriented.width * scale)), max(1, int(oriented.height * scale))))
+                    with oriented.convert('RGBA') as rgba, Image.new('RGB', rgba.size, 'white') as normalized:
+                        normalized.paste(rgba, mask=rgba.getchannel('A'))
+                        normalized.save(image_path)
+        except (UnidentifiedImageError, OSError, Image.DecompressionBombError):
+            raise ValueError('Bilddatei kann nicht sicher gelesen werden oder ist beschädigt.') from None
+        if cancelled():
+            raise AnalysisCancelled()
+        return run_ocr(backend.command(image_path, settings), settings.timeout, cancelled, backend.label)
