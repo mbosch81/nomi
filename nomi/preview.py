@@ -43,6 +43,10 @@ def load_preview(path: Path, page: int = 0) -> dict:
         if image.isNull():
             raise ValueError('Bild kann nicht angezeigt werden.')
         return {'image': image, 'page': 0, 'pages': 1}
+    if suffix == '.docx':
+        from .docx_reader import read_docx
+        text, truncated = read_docx(path, 256*1024)
+        return {'text': text, 'truncated': truncated, 'page': 0, 'pages': 1, 'docx': True}
     if suffix not in {'.txt', '.md', '.csv'}:
         raise ValueError('Für diesen Dateityp gibt es keine Vorschau.')
     limit = 256 * 1024
@@ -184,6 +188,8 @@ class PreviewPanel(QWidget):
                 if 'text' in data:
                     self.text.setPlainText(data['text'])
                     self.stack.setCurrentWidget(self.text)
+                    if data.get('docx'):
+                        self.note.setText('DOCX-Textvorschau · ohne Seitenlayout und eingebettete Bilder')
                     if data.get('truncated'):
                         self.note.setText('Textvorschau auf 256 KiB begrenzt · Original unverändert')
                 else:

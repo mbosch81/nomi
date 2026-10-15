@@ -21,6 +21,13 @@ def run_self_test(app) -> int:
         image.save(root / 'scan.png')
         image.save(root / 'scan.jpg')
         image.close()
+        from zipfile import ZipFile
+        docx = root / 'preview.docx'
+        with ZipFile(docx, 'w') as archive:
+            archive.writestr('word/document.xml', '<w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"><w:body><w:p><w:r><w:t>DOCX Textvorschau Beispiel GmbH</w:t></w:r></w:p></w:body></w:document>')
+        assert 'Beispiel' in extract_document(docx).text
+        from .inbox import inbox_snapshot
+        assert docx in inbox_snapshot(root, False)
         (root / 'preview.txt').write_text('Lokale Textvorschau Beispiel GmbH', encoding='utf-8')
         before = hashlib.sha256(source.read_bytes()).hexdigest()
         document = extract_document(source, settings=Settings(ocr_enabled=True, ocr_language='eng'))
@@ -38,7 +45,7 @@ def run_self_test(app) -> int:
         window.add([source])
         window.table.item(0, 2).setText(make_name({'absender': 'Beispiel GmbH', 'dokumenttyp': 'Rechnung'}, source, Settings().template))
 
-        preview_paths = [source, root / 'scan.png', root / 'scan.jpg', root / 'preview.txt']
+        preview_paths = [source, root / 'scan.png', root / 'scan.jpg', root / 'preview.txt', docx]
         preview_index = [0]
         preview_ticks = [0]
         timer = QTimer()
@@ -49,7 +56,7 @@ def run_self_test(app) -> int:
                 return
             try:
                 assert window.preview._active is None
-                if preview_index[0] == 3:
+                if preview_index[0] >= 3:
                     assert 'Textvorschau' in window.preview.text.toPlainText()
                 else:
                     assert not window.preview._image.isNull()
@@ -64,7 +71,7 @@ def run_self_test(app) -> int:
                 window.revert()
                 assert hashlib.sha256(source.read_bytes()).hexdigest() == before
                 assert not target.exists()
-                result.update(ok=True, preview=True, image_ocr=True, ocr=True, ocr_backend=document.ocr_backend, qt=True, rename=True, undo=True)
+                result.update(ok=True, docx=True, inbox_snapshot=True, preview=True, image_ocr=True, ocr=True, ocr_backend=document.ocr_backend, qt=True, rename=True, undo=True)
             except Exception as error:
                 result.update(ok=False, error=type(error).__name__)
             timer.stop()

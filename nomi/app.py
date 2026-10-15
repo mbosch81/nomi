@@ -4,8 +4,10 @@ from pathlib import Path
 from dataclasses import asdict
 from PySide6.QtCore import Qt, QThread, Signal, QSettings, QTimer
 from PySide6.QtGui import QAction, QKeySequence
-from PySide6.QtWidgets import (QApplication, QMainWindow, QWidget, QVBoxLayout, QHBoxLayout, QLabel, QPushButton, QTableWidget, QTableWidgetItem, QHeaderView, QFileDialog, QCheckBox, QLineEdit, QComboBox, QSpinBox, QProgressBar, QMessageBox, QDialog, QDialogButtonBox, QGroupBox, QFormLayout, QSplitter)
+from PySide6.QtWidgets import (QApplication, QMainWindow, QWidget, QVBoxLayout, QHBoxLayout, QLabel, QPushButton, QTableWidget, QTableWidgetItem, QHeaderView, QFileDialog, QCheckBox, QLineEdit, QComboBox, QSpinBox, QProgressBar, QMessageBox, QDialog, QDialogButtonBox, QGroupBox, QFormLayout, QSplitter, QScrollArea)
 from .preview import PreviewPanel
+from .model_manager import ModelManager
+from .inbox import InboxWatcher
 from .llama_backend import LocalEngine
 from .local_model import default_model_path, download_model, model_catalog, model_directory
 from .core import Settings, OllamaBackend, collect, make_name, rename_batch, undo, validate_template, RenameError, extract_document, AnalysisCancelled, available_name, validate_name
@@ -127,7 +129,7 @@ class Window(QMainWindow):
         header.addWidget(self.settings_button)
         layout.addLayout(header)
         layout.addWidget(QLabel('Jede Datei verdient einen Namen.'))
-        self.drop_hint = QLabel('Dateien oder Ordner hierher ziehen · PDF, PNG, JPEG, TXT, Markdown und CSV')
+        self.drop_hint = QLabel('Dateien oder Ordner hierher ziehen · PDF, DOCX, PNG, JPEG, TXT, Markdown und CSV')
         self.drop_hint.setStyleSheet('border: 2px dashed #55618a; border-radius: 12px; padding: 22px; color: #bec8e5;')
         self.drop_hint.setAlignment(Qt.AlignmentFlag.AlignCenter)
         layout.addWidget(self.drop_hint)
@@ -143,7 +145,13 @@ class Window(QMainWindow):
         self.settings_dialog = QDialog(self)
         self.settings_dialog.setWindowTitle('Nomi · Einstellungen')
         self.settings_dialog.resize(760, 650)
-        settings_layout = QVBoxLayout(self.settings_dialog)
+        settings_outer = QVBoxLayout(self.settings_dialog)
+        settings_scroll = QScrollArea()
+        settings_scroll.setWidgetResizable(True)
+        settings_content = QWidget()
+        settings_scroll.setWidget(settings_content)
+        settings_outer.addWidget(settings_scroll)
+        settings_layout = QVBoxLayout(settings_content)
         settings_layout.setContentsMargins(24, 24, 24, 24)
         settings_layout.setSpacing(16)
         backend_group = QGroupBox('Analyse und Modelle')
@@ -210,6 +218,9 @@ class Window(QMainWindow):
         model_actions.addWidget(self.local_load_button)
         local_row.addLayout(model_actions)
         local_row.addWidget(self.autoload)
+        self.manage_models = QPushButton('Installierte Modelle verwalten …')
+        self.manage_models.clicked.connect(lambda: self.model_manager.show())
+        local_row.addWidget(self.manage_models)
         schema_group = QGroupBox('Dateinamen')
         schema_row = QFormLayout(schema_group)
         settings_layout.addWidget(schema_group)
@@ -240,6 +251,23 @@ class Window(QMainWindow):
         ocr_row.addRow('OCR-Backend', self.ocr_backend)
         ocr_row.addRow('Sprachen', self.ocr_language)
         ocr_row.addRow(self.ocr_command_label, self.ocr_command)
+        inbox_group = QGroupBox('Überwachter Eingangsordner')
+        inbox_layout = QVBoxLayout(inbox_group)
+        self.inbox_enabled = QCheckBox('Eingangsordner überwachen')
+        self.inbox_enabled.setChecked(str(self.store.value('inbox_enabled', 'false')).lower() in {'true', '1'})
+        self.inbox_folder = QLineEdit(str(self.store.value('inbox_folder', '')))
+        self.inbox_folder.setPlaceholderText('Ordner für neue Dokumente')
+        self.inbox_choose = QPushButton('Ordner wählen')
+        inbox_path = QHBoxLayout();inbox_path.addWidget(self.inbox_folder);inbox_path.addWidget(self.inbox_choose)
+        self.inbox_recursive = QCheckBox('Unterordner überwachen')
+        self.inbox_recursive.setChecked(str(self.store.value('inbox_recursive', 'false')).lower() in {'true', '1'})
+        inbox_layout.addWidget(self.inbox_enabled)
+        inbox_layout.addLayout(inbox_path)
+        inbox_layout.addWidget(self.inbox_recursive)
+        self.inbox_status = QLabel('Nur Import · keine automatische Analyse oder Umbenennung')
+        self.inbox_status.setWordWrap(True)
+        inbox_layout.addWidget(self.inbox_status)
+        settings_layout.addWidget(inbox_group)
         settings_layout.addWidget(QLabel('Änderungen werden direkt übernommen und beim Schließen gespeichert.'))
         buttons = QDialogButtonBox(QDialogButtonBox.StandardButton.Close)
         buttons.button(QDialogButtonBox.StandardButton.Close).setText('Schließen')
@@ -296,7 +324,7 @@ class Window(QMainWindow):
         self.undo_button.clicked.connect(self.revert)
         self.all_button.clicked.connect(lambda: self.select_all(True))
         self.none_button.clicked.connect(lambda: self.select_all(False))
-        self.busy_widgets = [self.files_button, self.folder_button, self.recursive, self.clear_button, self.url, self.model, self.connect_button, self.timeout, self.template, self.all_button, self.none_button, self.analyze_button, self.rename_button, self.undo_button, self.ocr_enabled, self.ocr_language, self.ocr_command, self.ocr_backend, self.engine, self.gguf, self.gguf_button, self.download_button, self.local_load_button, self.autoload, self.download_choice]
+        self.busy_widgets = [self.files_button, self.folder_button, self.recursive, self.clear_button, self.url, self.model, self.connect_button, self.timeout, self.template, self.all_button, self.none_button, self.analyze_button, self.rename_button, self.undo_button, self.ocr_enabled, self.ocr_language, self.ocr_command, self.ocr_backend, self.engine, self.gguf, self.gguf_button, self.download_button, self.local_load_button, self.autoload, self.download_choice, self.inbox_enabled, self.inbox_folder, self.inbox_choose, self.inbox_recursive]
 
         self.engine.currentIndexChanged.connect(self.engine_changed)
         self.gguf.textChanged.connect(self.model_path_changed)
@@ -305,7 +333,30 @@ class Window(QMainWindow):
         self.download_choice.currentIndexChanged.connect(self.download_model_changed)
         self.local_load_button.clicked.connect(lambda: self.start_local_model())
         self.update_engine_controls()
+        self.model_manager = ModelManager(self)
+        self.inbox = InboxWatcher(self.busy, self)
+        self.inbox.files_ready.connect(self.add)
+        self.inbox.message.connect(self.inbox_status.setText)
+        self.inbox_enabled.toggled.connect(self.configure_inbox)
+        self.inbox_recursive.toggled.connect(self.configure_inbox)
+        self.inbox_folder.editingFinished.connect(self.configure_inbox)
+        self.inbox_choose.clicked.connect(self.choose_inbox)
+        self.configure_inbox()
         QTimer.singleShot(0, self.auto_load)
+
+    def choose_inbox(self):
+        folder = QFileDialog.getExistingDirectory(self, 'Eingangsordner wählen')
+        if folder:
+            self.inbox_folder.setText(folder)
+            self.configure_inbox()
+
+    def configure_inbox(self):
+        enabled = self.inbox_enabled.isChecked()
+        folder = self.inbox_folder.text().strip()
+        recursive = self.inbox_recursive.isChecked()
+        for key, value in (('inbox_enabled', enabled), ('inbox_folder', folder), ('inbox_recursive', recursive)):
+            self.store.setValue(key, value)
+        self.inbox.configure(folder if enabled else '', recursive)
 
     def download_model_changed(self):
         selected = self.download_choice.currentData()
@@ -386,6 +437,7 @@ class Window(QMainWindow):
         self._local_backend = backend
         self.store.setValue('llama_model', path)
         self.status.setText('Lokales Modell bereit · ' + Path(path).name)
+        self.model_manager.refresh()
 
     def update_ocr_controls(self):
         from .ocr import effective_backend
@@ -415,6 +467,7 @@ class Window(QMainWindow):
         self.preview.name.setEnabled(not value and self.preview.path is not None)
         self.cancel_button.setEnabled(value)
         self.refresh_analysis_enabled()
+        self.model_manager.update_actions()
 
     def dragEnterEvent(self, event):
         if not self.busy() and event.mimeData().hasUrls() and any(u.isLocalFile() for u in event.mimeData().urls()):
@@ -426,7 +479,7 @@ class Window(QMainWindow):
             event.acceptProposedAction()
 
     def choose_files(self):
-        files, _ = QFileDialog.getOpenFileNames(self, 'Dateien hinzufügen', '', 'Dokumente (*.pdf *.png *.jpg *.jpeg *.txt *.md *.csv)')
+        files, _ = QFileDialog.getOpenFileNames(self, 'Dateien hinzufügen', '', 'Dokumente (*.pdf *.docx *.png *.jpg *.jpeg *.txt *.md *.csv)')
         self.add([Path(f) for f in files])
 
     def choose_folder(self):
@@ -603,6 +656,7 @@ class Window(QMainWindow):
         self.worker.deleteLater()
         self.worker = None
         self.refresh_analysis_enabled()
+        self.model_manager.refresh()
         if self._close_pending:
             QTimer.singleShot(0, self.close)
 
@@ -682,6 +736,8 @@ class Window(QMainWindow):
             QMessageBox.information(self, 'Analyse läuft', 'Bitte warte, bis die laufende Anfrage beendet ist. Danach lässt sich Nomi schließen.')
             event.ignore()
         else:
+            self.inbox.configure(None)
+            self.model_manager.close()
             self.settings_dialog.close()
             self.local_engine.stop()
             self.settings()

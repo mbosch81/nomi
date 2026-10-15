@@ -112,6 +112,62 @@ class AppTests(TestCase):
         self.window.clear()
         self.assertIsNone(self.window.preview.path)
 
+    def test_docx_analysis_in_worker_and_text_preview(self):
+        from zipfile import ZipFile
+        source = self.root/'letter.docx'
+        with ZipFile(source, 'w') as archive:
+            archive.writestr('word/document.xml', '<w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"><w:body><w:p><w:r><w:t>Rechnung Beispiel GmbH</w:t></w:r></w:p></w:body></w:document>')
+        original=source.read_bytes()
+        self.window.add([source]);self.window.model.setCurrentText('synthetic-model')
+        with patch('nomi.app.OllamaBackend.suggest',return_value={'dokumenttyp':'Rechnung'}) as suggest:
+            self.click(self.window.analyze_button);self.wait_idle()
+        self.assertIn('Beispiel',suggest.call_args.args[0])
+        self.assertEqual(self.window.table.item(0,2).text(),'Rechnung.docx')
+        self.assertEqual(source.read_bytes(),original)
+
+    def test_inbox_imports_without_starting_analysis_and_persists(self):
+        self.window.inbox_folder.setText(str(self.root))
+        self.window.inbox_enabled.setChecked(True)
+        watcher=self.window.inbox;watcher.timer.stop()
+        def complete_scan():
+            deadline=time.monotonic()+3
+            while watcher._active and time.monotonic()<deadline:
+                self.app.processEvents();time.sleep(.01)
+            self.assertIsNone(watcher._active)
+        complete_scan()
+        self.assertEqual(self.window.paths,[])
+        watcher.poll();complete_scan()
+        self.assertIn(self.a,self.window.paths)
+        self.assertIn(self.b,self.window.paths)
+        self.assertFalse(self.window.busy())
+        self.assertEqual(self.window.table.item(0,2).text(),'')
+        self.assertTrue(self.store.value('inbox_enabled'))
+        self.window.inbox_enabled.setChecked(False)
+        self.assertFalse(watcher.timer.isActive())
+
+    def test_model_manager_inventory_select_and_unload(self):
+        models=self.root/'models';models.mkdir()
+        model=models/'test.gguf';model.write_bytes(b'GGUFsynthetic')
+        self.window.autoload.setChecked(False)
+        self.window.gguf.setText(str(model))
+        manager=self.window.model_manager
+        with patch('nomi.model_manager.model_directory',return_value=models):
+            manager.show();self.app.processEvents()
+            self.assertEqual(manager.table.rowCount(),1)
+            self.assertIn('GB',manager.table.item(0,1).text())
+            with patch.object(self.window,'start_local_model') as start:
+                manager.load_selected()
+                start.assert_called_once_with()
+            self.assertEqual(self.window.gguf.text(),str(model))
+            self.window.local_engine.model=model
+            manager.refresh()
+            self.assertEqual(manager.table.item(0,2).text(),'Geladen')
+            self.assertFalse(manager.remove.isEnabled())
+            manager.unload_model()
+            self.assertIsNone(self.window.local_engine.model)
+            self.assertTrue(model.exists())
+            manager.close()
+
     def test_import_edit_select_rename_undo(self):
         with patch.object(QFileDialog, 'getOpenFileNames', return_value=([str(self.a), str(self.b)], '')):
             self.click(self.window.files_button)

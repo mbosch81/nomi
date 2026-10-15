@@ -93,9 +93,9 @@ Vision verwendet die genaue Erkennung mit Sprachkorrektur, OCR-Revision 3 und CP
 
 Technische Referenzen: [Apple Vision](https://developer.apple.com/documentation/vision/recognizing-text-in-images), [Tesseract-CLI](https://tesseract-ocr.github.io/tessdoc/Command-Line-Usage.html), [PDFium-Python-API](https://pypdfium2.readthedocs.io/en/stable/python_api.html).
 
-## Grenzen der Version 0.6
+## Grenzen der Version 0.7
 
-- Text-PDFs, optional gescannte PDF-Seiten via Apple Vision oder Tesseract, UTF-8/Windows-1252-Texte, Markdown und CSV; zusätzlich PNG- und JPEG-Scans bei aktivierter OCR; keine allgemeine Bildanalyse oder DOCX-Verarbeitung.
+- Text-PDFs, optional gescannte PDF-Seiten via Apple Vision oder Tesseract, UTF-8/Windows-1252-Texte, Markdown und CSV; zusätzlich PNG- und JPEG-Scans bei aktivierter OCR; DOCX-Text einschließlich Tabellen, Kopf- und Fußzeilen; keine allgemeine Bildanalyse.
 - Pro Dokument maximal 16.000 Zeichen und bei PDFs die ersten 20 Seiten. Angaben außerhalb dieses Ausschnitts werden nicht berücksichtigt. Begrenzte PDF-/Textauszüge werden in der Tabelle kenntlich gemacht.
 - Jede Datei wird einzeln analysiert; die UI bleibt dabei bedienbar. Abbruch wirkt nach der laufenden Anfrage, deren Timeout konfigurierbar ist.
 - Die KI kann sich irren. Vorschläge müssen geprüft werden. Datumsprüfung und Prompt reduzieren Fehler; Absender, Dokumenttyp, Titel und Kennzeichen können weiterhin falsch zugeordnet werden. Sammelakten und mehrere Datumsangaben bleiben besonders prüfpflichtig.
@@ -128,7 +128,7 @@ Synthetische Testdaten werden nur in temporären Ordnern erzeugt. Keine produkti
 
 ## Verifizierter Entwicklungsstand (14.10.2026)
 
-- Installation in der vorhandenen `.venv` mit Python 3.14.8, PySide6 6.10.3 und pypdf 6.20.1 abgeschlossen; `pip check` erfolgreich. Alle 65 Tests bestehen; einschließlich echter Vision-OCR, optionaler Tesseract-OCR, OCR im Qt-Worker, Prozessabbruch/-timeout, verifiziertem Modelldownload, lokalem Autoload, Prozesswechsel, Datumsbelegung, Namenssuffixen und manuellen Konflikten. Plattformspezifische OCR-Integrationstests werden ohne die passenden Bibliotheken/Backends übersprungen. Die macOS-CI baut und prüft Vision ohne Tesseract-Installation; die Linux-CI prüft Tesseract.
+- Installation in der vorhandenen `.venv` mit Python 3.14.8, PySide6 6.10.3 und pypdf 6.20.1 abgeschlossen; `pip check` erfolgreich. Alle 75 Tests bestehen; einschließlich echter Vision-OCR, optionaler Tesseract-OCR, OCR im Qt-Worker, Prozessabbruch/-timeout, verifiziertem Modelldownload, lokalem Autoload, Prozesswechsel, Datumsbelegung, Namenssuffixen und manuellen Konflikten. Plattformspezifische OCR-Integrationstests werden ohne die passenden Bibliotheken/Backends übersprungen. Die macOS-CI baut und prüft Vision ohne Tesseract-Installation; die Linux-CI prüft Tesseract.
 - PySide6 ist auf `>=6.9,<6.11` begrenzt: Mit 6.12.0 trat beim Schließen nach nativer Tabellenbearbeitung ein QObject-Absturz auf. Derselbe Ablauf inklusive Schließen wurde mit 6.10.3 erfolgreich wiederholt (Exit-Code 0).
 - Core-, HTTP-Vertrags- und Qt-Tests laufen mit synthetischen Dokumenten. Sie prüfen unter anderem Konflikte, bestehende Zieldateien, doppelte Quellen, Rollback und teilweise fehlgeschlagene Rückabwicklungen, veränderte Dateien, Import, Auswahl, Analyse, Modellladen und Abbruch.
 - Die macOS-Oberfläche wurde gestartet und visuell geprüft; nativer Dateiimport, manuelles Bearbeiten, Umbenennen und Rückgängig wurden am Testdokument bedient und überprüft. Drag-and-drop wird zusätzlich über Qt-Ereignisse getestet.
@@ -141,7 +141,7 @@ Synthetische Testdaten werden nur in temporären Ordnern erzeugt. Keine produkti
 
 MIT — siehe [LICENSE](LICENSE). Die Lizenz gilt für Nomi; Abhängigkeiten und verwendete Modelle haben eigene Lizenzbedingungen.
 
-## macOS-App bauen (Version 0.6.0)
+## macOS-App bauen (Version 0.7.0)
 
 ```sh
 .venv/bin/python -m pip install -e '.[ocr,build]'
@@ -189,3 +189,15 @@ PNG, JPG und JPEG können über Dateidialog und Drag-and-drop importiert werden.
 ### Lokale Dokumentvorschau
 
 Die ausgewählte Datei erscheint rechts neben der Tabelle. Die Bereiche sind über den Trenner in der Breite verstellbar. PDFs lassen sich seitenweise durchblättern, Bilder und PDF-Seiten einpassen oder mit 100/150 Prozent betrachten. TXT, Markdown und CSV werden als reiner Text angezeigt (maximal 256 KiB). PDF-Vorschauen sind auf Dateien bis 200 MB begrenzt, Bildvorschauen auf 48 Megapixel. Die Vorschau lädt im Hintergrund und benötigt weder OCR noch einen KI-Dienst. Veraltete Ergebnisse nach einem Dateiwechsel werden verworfen. Passwortgeschützte oder beschädigte Dateien zeigen einen Hinweis. Das Namensfeld über der Vorschau ist mit der Tabelle synchronisiert. Umbenennen bleibt eine separate Aktion. Die Vorschau öffnet Quellen nur lesend und speichert keine Dokumentkopien.
+
+### Installierte Modelle verwalten
+
+Im Zahnrad unter „Installierte Modelle verwalten …“ werden GGUF-Dateien im Nomi-Modellordner und die konfigurierte externe Datei mit Speicherbedarf und Ladezustand angezeigt. Modelle lassen sich auswählen, laden und entladen. Entfernen verschiebt nach Bestätigung ausschließlich Dateien aus dem Nomi-Modellordner in den Betriebssystem-Papierkorb. Geladene Modelle müssen zuvor entladen werden. Externe Modelldateien werden nicht entfernt; es gibt keinen Fallback auf endgültiges Löschen.
+
+### Überwachter Eingangsordner
+
+In den Einstellungen Ordner auswählen und Überwachung aktivieren, optional mit Unterordnern. Die Überwachung läuft nur bei geöffneter App. Im Hintergrund wird etwa alle zwei Sekunden geprüft; eine Datei wird erst nach zwei aufeinanderfolgenden identischen Größen-/Änderungszeitprüfungen importiert. Das reduziert verfrühte Importe während Kopiervorgängen, garantiert aber keinen abgeschlossenen Schreibvorgang. Bereits vorhandene Dateien werden ebenso aufgenommen. Während Analyse oder Modell-Laden pausiert der Import. Keine automatische Analyse, kein automatisches Umbenennen. Symbolische Links, versteckte Dateien und Word-Sperrdateien werden ignoriert. Ein Scan ist auf 5.000 unterstützte Dateien begrenzt; eigene Umbenennungen bereits erkannter Dateien werden anhand der Dateiidentität nicht erneut importiert. Die Erkennungsliste wird nicht dauerhaft gespeichert; nach einem App-Neustart werden vorhandene Dateien erneut aufgenommen. Die Konfiguration bleibt lokal gespeichert.
+
+### DOCX
+
+DOCX-Dateien sind im Import, in der KI-Analyse und als reine Textvorschau verfügbar. Absätze, Tabellen sowie Kopf-/Fußzeilen werden aus dem Office-ZIP gelesen. Es wird kein Word benötigt. Die Vorschau rekonstruiert kein Seitenlayout und zeigt keine eingebetteten Bilder; Bild-OCR in DOCX, DOC und DOCM werden nicht unterstützt. XML-Entitäten/externe Ressourcen werden nicht aufgelöst; zu große oder beschädigte XML-Bestandteile werden abgewiesen. Originaldateien werden nur beim ausdrücklich ausgelösten Umbenennen umbenannt, nicht inhaltlich bearbeitet.
