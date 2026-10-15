@@ -18,11 +18,18 @@ def run_self_test(app) -> int:
         draw.text((60, 80), 'Rechnung Beispiel GmbH', fill='black', font=ImageFont.load_default(size=55))
         source = root / 'scan.pdf'
         image.save(source, 'PDF', resolution=150)
+        image.save(root / 'scan.png')
+        image.save(root / 'scan.jpg')
         image.close()
         before = hashlib.sha256(source.read_bytes()).hexdigest()
         document = extract_document(source, settings=Settings(ocr_enabled=True, ocr_language='eng'))
         if not document.used_ocr or 'Beispiel' not in document.text:
             raise RuntimeError('OCR-Selbsttest fehlgeschlagen.')
+        for image_source in (root / 'scan.png', root / 'scan.jpg'):
+            original = image_source.read_bytes()
+            recognized = extract_document(image_source, settings=Settings(ocr_enabled=True, ocr_language='eng'))
+            assert recognized.used_ocr and 'Beispiel' in recognized.text
+            assert image_source.read_bytes() == original
         store = QSettings(str(root / 'settings.ini'), QSettings.Format.IniFormat)
         store.setValue('engine', 'ollama')
         window = Window(store=store)
@@ -38,7 +45,7 @@ def run_self_test(app) -> int:
                 window.revert()
                 assert hashlib.sha256(source.read_bytes()).hexdigest() == before
                 assert not target.exists()
-                result.update(ok=True, ocr=True, ocr_backend=document.ocr_backend, qt=True, rename=True, undo=True)
+                result.update(ok=True, image_ocr=True, ocr=True, ocr_backend=document.ocr_backend, qt=True, rename=True, undo=True)
             except Exception as error:
                 result.update(ok=False, error=type(error).__name__)
             finally:
@@ -71,12 +78,12 @@ def run_llama_self_test(app) -> int:
     result = {}
     with TemporaryDirectory(prefix='nomi-local-smoke-') as folder:
         root = Path(folder)
-        source = root / 'scan.pdf'
+        source = root / 'scan.png'
         image = Image.new('RGB', (1400, 500), 'white')
         draw = ImageDraw.Draw(image)
         for index, line in enumerate(['Rechnung Beispiel GmbH', 'Rechnungsdatum: 14.10.2026', 'Rechnungsnummer: TEST-42']):
             draw.text((60, 40 + index * 120), line, fill='black', font=ImageFont.load_default(size=50))
-        image.save(source, 'PDF', resolution=150)
+        image.save(source)
         image.close()
         before = hashlib.sha256(source.read_bytes()).hexdigest()
         store = QSettings(str(root / 'settings.ini'), QSettings.Format.IniFormat)
