@@ -46,7 +46,7 @@ class Worker(QThread):
                 identity = file_identity(path)
                 cached = self.cache.get(path, self.settings) if self.cache is not None and not self.force else None
                 if cached is not None:
-                    name = available_name(path, cached['name'], reserved.setdefault(path.parent, set()))
+                    name = available_name(path, cached['name'], reserved.setdefault(path.parent, set()), self.settings)
                     detail = dict(cached, name=name)
                     self.cache.put(identity, self.settings, detail)
                     self.details.emit(row, detail)
@@ -73,8 +73,8 @@ class Worker(QThread):
                     metadata = backend.suggest(document.text, self.settings)
                 if self.isInterruptionRequested():break
                 from .routing import naming_template
-                proposed = make_name(metadata, path, naming_template(self.settings, path))
-                name = available_name(path, proposed, reserved.setdefault(path.parent, set()))
+                proposed = make_name(metadata, path, naming_template(self.settings, path), self.settings)
+                name = available_name(path, proposed, reserved.setdefault(path.parent, set()), self.settings)
                 if name == path.name:
                     status = 'Unverändert'
                 elif path.with_name(name).exists():
@@ -321,6 +321,33 @@ class Window(QMainWindow):
         self.video_template = QLineEdit(str(self.store.value('video_template', 'Video_{titel}')))
         schema_row.addRow('Bilder', self.image_template)
         schema_row.addRow('Videos', self.video_template)
+        from .naming import PRESETS
+        self.preset = QComboBox()
+        self.preset.addItems(PRESETS)
+        self.apply_preset = QPushButton('Vorlage übernehmen')
+        presets_row = QHBoxLayout()
+        presets_row.addWidget(self.preset,1);presets_row.addWidget(self.apply_preset)
+        schema_row.addRow('Vorlagen',presets_row)
+        self.name_separator = QComboBox()
+        self.name_separator.addItem('Unterstriche','_');self.name_separator.addItem('Leerzeichen',' ')
+        self.name_separator.setCurrentIndex(max(0,self.name_separator.findData(str(self.store.value('name_separator','_')))))
+        self.name_case = QComboBox()
+        for label,value in [('Beibehalten','preserve'),('kleinschreibung','lower'),('GROSSSCHREIBUNG','upper')]:self.name_case.addItem(label,value)
+        self.name_case.setCurrentIndex(max(0,self.name_case.findData(str(self.store.value('name_case','preserve')))))
+        self.max_name_length = QSpinBox();self.max_name_length.setRange(40,240)
+        self.max_name_length.setValue(int(self.store.value('max_name_length',180)))
+        self.max_name_length.setToolTip('Gesamter Dateiname einschließlich Endung; zusätzlich wird die UTF-8-Bytelänge begrenzt.')
+        self.transliterate_umlauts = QCheckBox('Umlaute ersetzen (ä → ae, ß → ss)')
+        self.transliterate_umlauts.setChecked(str(self.store.value('transliterate_umlauts','false')).lower() in ('true','1'))
+        self.windows_compatible = QCheckBox('Windows-/NAS-kompatible Namen absichern')
+        self.windows_compatible.setChecked(str(self.store.value('windows_compatible','true')).lower() in ('true','1'))
+        schema_row.addRow('Trennzeichen',self.name_separator)
+        schema_row.addRow('Schreibweise',self.name_case)
+        schema_row.addRow('Maximale Namenslänge',self.max_name_length)
+        schema_row.addRow(self.transliterate_umlauts);schema_row.addRow(self.windows_compatible)
+        self.naming_example = QLabel()
+        self.naming_example.setWordWrap(True);self.naming_example.setTextFormat(Qt.TextFormat.PlainText)
+        schema_row.addRow('Beispiel (synthetisch)',self.naming_example)
         schema_hint = QLabel('{datum}, {absender}, {dokumenttyp}, {titel}, {empfaenger}, {kennung}')
         schema_hint.setWordWrap(True)
         schema_row.addRow(schema_hint)
@@ -468,9 +495,16 @@ class Window(QMainWindow):
         self.undo_button.clicked.connect(self.revert)
         self.all_button.clicked.connect(lambda: self.select_all(True))
         self.none_button.clicked.connect(lambda: self.select_all(False))
-        self.busy_widgets = [self.files_button, self.folder_button, self.recursive, self.clear_button, self.url, self.model, self.connect_button, self.timeout, self.template, self.all_button, self.none_button, self.analyze_button, self.reanalyze_button, self.rename_button, self.undo_button, self.ocr_enabled, self.ocr_language, self.ocr_command, self.ocr_backend, self.engine, self.gguf, self.gguf_button, self.download_button, self.local_load_button, self.autoload, self.download_choice, self.inbox_enabled, self.inbox_folder, self.inbox_choose, self.inbox_recursive, self.projector, self.projector_button, self.video_frames, self.video_timeout, self.image_analysis, self.auto_models, self.text_model, self.image_template, self.video_template]
+        self.busy_widgets = [self.files_button, self.folder_button, self.recursive, self.clear_button, self.url, self.model, self.connect_button, self.timeout, self.template, self.all_button, self.none_button, self.analyze_button, self.reanalyze_button, self.rename_button, self.undo_button, self.ocr_enabled, self.ocr_language, self.ocr_command, self.ocr_backend, self.engine, self.gguf, self.gguf_button, self.download_button, self.local_load_button, self.autoload, self.download_choice, self.inbox_enabled, self.inbox_folder, self.inbox_choose, self.inbox_recursive, self.projector, self.projector_button, self.video_frames, self.video_timeout, self.image_analysis, self.auto_models, self.text_model, self.image_template, self.video_template, self.preset, self.apply_preset, self.name_separator, self.name_case, self.max_name_length, self.transliterate_umlauts, self.windows_compatible]
 
         self.auto_models.toggled.connect(self.refresh_analysis_enabled)
+        self.apply_preset.clicked.connect(self.apply_naming_preset)
+        for widget in (self.template,self.image_template,self.video_template):widget.textChanged.connect(self.update_naming_example)
+        for widget in (self.name_separator,self.name_case):widget.currentIndexChanged.connect(self.update_naming_example)
+        self.max_name_length.valueChanged.connect(self.update_naming_example)
+        self.transliterate_umlauts.toggled.connect(self.update_naming_example)
+        self.windows_compatible.toggled.connect(self.update_naming_example)
+        self.update_naming_example()
         self.engine.currentIndexChanged.connect(self.engine_changed)
         self.gguf.textChanged.connect(self.model_path_changed)
         self.projector.textChanged.connect(self.projector_path_changed)
@@ -634,6 +668,21 @@ class Window(QMainWindow):
         self.ocr_command.setVisible(show_command)
         self.ocr_command_label.setVisible(show_command)
 
+    def apply_naming_preset(self):
+        from .naming import PRESETS
+        kind,template=PRESETS[self.preset.currentText()]
+        {'document':self.template,'image':self.image_template,'video':self.video_template}[kind].setText(template)
+
+    def update_naming_example(self):
+        from .naming import EXAMPLE
+        from .routing import naming_template
+        try:
+            settings=self.settings()
+            examples=[label+': '+make_name(EXAMPLE,path,naming_template(settings,path),settings)
+                      for label,path in [('Dokument',Path('beispiel.pdf')),('Bild',Path('beispiel.jpg')),('Video',Path('beispiel.mp4'))]]
+            self.naming_example.setText('\n'.join(examples))
+        except ValueError as error:self.naming_example.setText('Vorlage prüfen: '+str(error))
+
     def settings(self):
         settings = Settings(url=self.url.text().strip(), model=self.model.currentText().strip(),
                             template=self.template.text().strip(), timeout=self.timeout.value(),
@@ -644,7 +693,10 @@ class Window(QMainWindow):
                             video_frames=self.video_frames.value(), video_timeout=self.video_timeout.value(),
                             image_analysis=self.image_analysis.currentData(), auto_models=self.auto_models.isChecked(),
                             text_model=self.text_model.currentData(), image_template=self.image_template.text().strip(),
-                            video_template=self.video_template.text().strip())
+                            video_template=self.video_template.text().strip(),
+                            name_separator=self.name_separator.currentData(),name_case=self.name_case.currentData(),
+                            max_name_length=self.max_name_length.value(),transliterate_umlauts=self.transliterate_umlauts.isChecked(),
+                            windows_compatible=self.windows_compatible.isChecked())
         for key, value in asdict(settings).items():
             self.store.setValue(key, value)
         return settings

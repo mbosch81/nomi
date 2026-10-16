@@ -34,6 +34,11 @@ class Settings:
     llama_model: str = ''
     llama_autoload: bool = True
     llama_projector: str = ''
+    max_name_length: int = 180
+    name_separator: str = '_'
+    name_case: str = 'preserve'
+    transliterate_umlauts: bool = False
+    windows_compatible: bool = True
     analysis_hint: str = ''
     auto_models: bool = False
     text_model: str = 'qwen'
@@ -119,7 +124,7 @@ def grounded_date(value: str, text: str) -> tuple[str, str]:
     return '', 'Vertrags-/Zeitraumdatum — weggelassen'
 
 
-def make_name(data: dict, source: Path, template: str) -> str:
+def make_name(data: dict, source: Path, template: str, settings=None) -> str:
     validate_template(template)
     values = {}
     for key in FIELDS:
@@ -129,10 +134,13 @@ def make_name(data: dict, source: Path, template: str) -> str:
         value = value.strip()
         values[key] = '' if value.casefold() in PLACEHOLDERS else value
     values['datum'] = normalize_date(values['datum'])
+    if settings is not None:
+        from .naming import format_name
+        return format_name(template.format(**values), source, settings)
     return safe_stem(template.format(**values)) + source.suffix
 
 
-def available_name(source: Path, name: str, reserved: set[str]) -> str:
+def available_name(source: Path, name: str, reserved: set[str], settings=None) -> str:
     """Generate a reviewable suffix; the rename operation still checks atomically."""
     validate_name(source, name)
     occupied = {p.name.casefold() for p in source.parent.iterdir() if p != source}
@@ -140,7 +148,11 @@ def available_name(source: Path, name: str, reserved: set[str]) -> str:
     candidate = name
     number = 2
     while candidate.casefold() in occupied:
-        candidate = f'{Path(name).stem}_{number}{source.suffix}'
+        marker = (settings.name_separator if settings else '_') + str(number)
+        stem = Path(name).stem
+        limit = settings.max_name_length if settings else 240
+        while len((stem+marker+source.suffix).encode('utf-8')) > limit:stem=stem[:-1]
+        candidate = stem.rstrip(' ._') + marker + source.suffix
         validate_name(source, candidate)
         number += 1
     reserved.add(candidate.casefold())
