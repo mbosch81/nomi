@@ -1,5 +1,6 @@
 """A pinned data-only model download; no runtime executable is downloaded here."""
 from __future__ import annotations
+from .i18n import tr
 from dataclasses import dataclass
 import hashlib
 import os
@@ -29,20 +30,20 @@ class ModelSpec:
 
 def model_catalog() -> tuple[ModelSpec, ...]:
     return (
-        ModelSpec('qwen', 'Qwen3 4B · Standard · 2,5 GB', MODEL_FILENAME,
+        ModelSpec('qwen', tr('Qwen3 4B · Standard · 2,5 GB'), MODEL_FILENAME,
                   MODEL_URL, MODEL_SHA256, MODEL_BYTES),
-        ModelSpec('mistral', 'Mistral 7B Instruct v0.3 · 4,4 GB',
+        ModelSpec('mistral', tr('Mistral 7B Instruct v0.3 · 4,4 GB'),
                   'Mistral-7B-Instruct-v0.3-Q4_K_M.gguf',
                   'https://huggingface.co/bartowski/Mistral-7B-Instruct-v0.3-GGUF/resolve/'
                   '61fd4167fff3ab01ee1cfe0da183fa27a944db48/Mistral-7B-Instruct-v0.3-Q4_K_M.gguf',
                   '1270d22c0fbb3d092fb725d4d96c457b7b687a5f5a715abe1e818da303e562b6',
                   4372812000),
-        ModelSpec('smolvlm', 'SmolVLM2 2.2B · Bilder/Video · 1,7 GB',
+        ModelSpec('smolvlm', tr('SmolVLM2 2.2B · Bilder/Video · 1,7 GB'),
                   'SmolVLM2-2.2B-Instruct-Q4_K_M.gguf',
                   'https://huggingface.co/ggml-org/SmolVLM2-2.2B-Instruct-GGUF/resolve/'
                   '1bc3c9f74ceafd4c8d4411cc9cf188bba3798f91/SmolVLM2-2.2B-Instruct-Q4_K_M.gguf',
                   '0cf76814555b8665149075b74ab6b5c1d428ea1d3d01c1918c12012e8d7c9f58', 1112602656,
-                  ModelSpec('smolvlm-projector', 'SmolVLM2 Vision-Projektor',
+                  ModelSpec('smolvlm-projector', tr('SmolVLM2 Vision-Projektor'),
                             'mmproj-SmolVLM2-2.2B-Instruct-Q8_0.gguf',
                             'https://huggingface.co/ggml-org/SmolVLM2-2.2B-Instruct-GGUF/resolve/'
                             '1bc3c9f74ceafd4c8d4411cc9cf188bba3798f91/mmproj-SmolVLM2-2.2B-Instruct-Q8_0.gguf',
@@ -56,7 +57,7 @@ def model_spec(key: str) -> ModelSpec:
             return model
         if model.projector and model.projector.key == key:
             return model.projector
-    raise ValueError('Unbekanntes Download-Modell.')
+    raise ValueError(tr('Unbekanntes Download-Modell.'))
 
 
 def model_directory() -> Path:
@@ -73,10 +74,10 @@ def default_model_path() -> Path:
 
 def check_model(path: Path):
     if path.suffix.lower() != '.gguf' or not path.is_file():
-        raise ValueError('Bitte eine vorhandene GGUF-Modelldatei auswählen.')
+        raise ValueError(tr('Bitte eine vorhandene GGUF-Modelldatei auswählen.'))
     with path.open('rb') as handle:
         if handle.read(4) != b'GGUF':
-            raise ValueError('Die Datei ist kein gültiges GGUF-Modell.')
+            raise ValueError(tr('Die Datei ist kein gültiges GGUF-Modell.'))
 
 
 def file_digest(path: Path, cancelled=lambda: False) -> str:
@@ -99,9 +100,9 @@ def download_model(key: str, destination: Path | None = None, cancelled=lambda: 
     model = model_spec(key)
     destination = destination if destination is not None else model_directory() / model.filename
     if destination.exists():
-        progress(f'Vorhandenes Modell wird geprüft · {model.label}')
+        progress(f"{tr('Vorhandenes Modell wird geprüft · ')}{model.label}")
         if destination.stat().st_size != model.size or file_digest(destination, cancelled) != model.sha256:
-            raise ValueError('Die vorhandene Modelldatei stimmt nicht mit dem gewählten Download-Modell überein; sie wird nicht überschrieben.')
+            raise ValueError(tr('Die vorhandene Modelldatei stimmt nicht mit dem gewählten Download-Modell überein; sie wird nicht überschrieben.'))
         return destination
     if cancelled():
         raise AnalysisCancelled()
@@ -119,25 +120,25 @@ def download_model(key: str, destination: Path | None = None, cancelled=lambda: 
                         raise AnalysisCancelled()
                     received += len(block)
                     if received > model.size:
-                        raise ValueError('Unerwartete Größe der Modelldatei.')
+                        raise ValueError(tr('Unerwartete Größe der Modelldatei.'))
                     handle.write(block)
                     digest.update(block)
                     percent = min(100, received * 100 // model.size)
                     if percent != last_percent:
-                        progress(f'{model.label} herunterladen: {percent} %')
+                        progress(f'{tr(model.label)}{tr(" herunterladen: ")}{percent} %' )
                         last_percent = percent
             handle.flush()
             os.fsync(handle.fileno())
         if cancelled():
             raise AnalysisCancelled()
         if received != model.size or digest.hexdigest() != model.sha256:
-            raise ValueError('Prüfsumme der Modelldatei stimmt nicht. Download wurde verworfen.')
+            raise ValueError(tr('Prüfsumme der Modelldatei stimmt nicht. Download wurde verworfen.'))
         # Reserve atomically without overwriting a model another app downloaded.
         try:
             os.link(temporary, destination)
         except FileExistsError:
             if file_digest(destination, cancelled) != model.sha256:
-                raise ValueError('Modelldatei wurde zwischenzeitlich belegt; nichts überschrieben.')
+                raise ValueError(tr('Modelldatei wurde zwischenzeitlich belegt; nichts überschrieben.'))
         return destination
     finally:
         if temporary is not None:

@@ -12,7 +12,7 @@ data = [(str(root / name), '.') for name in ('LICENSE', 'README.md', 'CHANGELOG.
 data += [(str(root / 'docs'), 'docs'), (str(llama / 'LICENSE'), 'third_party/llama.cpp')]
 data += [(str(ffmpeg / name), 'third_party/ffmpeg') for name in ('COPYING.LGPLv2.1', 'build.json', 'ffmpeg-9.0.2.tar.xz')]
 a = Analysis([str(root / 'build_support/launcher.py')], pathex=[str(root)], binaries=binaries,
-             datas=data + [(str(license_directory), 'third_party/python')] + copy_metadata('nomi-renamer') + collect_data_files('pypdfium2_raw'),
+             datas=data + [(str(license_directory), 'third_party/python')] + copy_metadata('nomi-renamer') + collect_data_files('pypdfium2_raw') + collect_data_files('nomi', includes=['locales/*.json', 'helpers/*.ps1']),
              hiddenimports=['PIL.PdfImagePlugin', 'nomi.diagnostics'],
              excludes=['PySide6.QtWebEngineCore', 'PySide6.QtWebEngineWidgets', 'tkinter'])
 pyz = PYZ(a.pure)

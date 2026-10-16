@@ -1,5 +1,6 @@
 """Managed llama.cpp subprocess; binds only loopback and uses an ephemeral key."""
 from __future__ import annotations
+from .i18n import tr
 import json
 import os
 from pathlib import Path
@@ -23,7 +24,7 @@ def runtime_path() -> Path:
     installed = shutil.which('llama-server')
     if installed:
         return Path(installed)
-    raise ValueError('llama.cpp-Runtime fehlt. Bitte das vollständige Nomi-App-Bundle verwenden oder build_support/fetch_llama.py ausführen.')
+    raise ValueError(tr('llama.cpp-Runtime fehlt. Bitte das vollständige Nomi-App-Bundle verwenden oder build_support/fetch_llama.py ausführen.'))
 
 
 def local_request(url: str, key: str, route: str, payload=None, timeout=5):
@@ -54,14 +55,14 @@ class LlamaBackend:
         }, timeout=settings.timeout)
         choice = result['choices'][0]
         if choice.get('finish_reason') == 'length':
-            raise ValueError('Lokale KI-Antwort wurde abgeschnitten. Bitte erneut versuchen oder kürzeren Text verwenden.')
+            raise ValueError(tr('Lokale KI-Antwort wurde abgeschnitten. Bitte erneut versuchen oder kürzeren Text verwenden.'))
         return parse_metadata(choice['message']['content'], text)
 
 
     def suggest_images(self, frames, settings, *, prompt=None):
         from .video import VIDEO_PROMPT
         if not self.supports_images:
-            raise ValueError('Das geladene Modell unterstützt keine Bilder.')
+            raise ValueError(tr('Das geladene Modell unterstützt keine Bilder.'))
         content = [{'type': 'text', 'text': (prompt or VIDEO_PROMPT) + ('\nFilename preference: '+settings.analysis_hint[:500] if settings.analysis_hint else '')}]
         for timestamp, encoded in frames:
             content.extend([{'type': 'text', 'text': f'Sample {timestamp:.2f}'},
@@ -74,7 +75,7 @@ class LlamaBackend:
         }, timeout=settings.timeout)
         choice = result['choices'][0]
         if choice.get('finish_reason') == 'length':
-            raise ValueError('Vision-Antwort wurde abgeschnitten. Weniger Frames versuchen.')
+            raise ValueError(tr('Vision-Antwort wurde abgeschnitten. Weniger Frames versuchen.'))
         return parse_metadata(choice['message']['content'], '')
 
 
@@ -118,7 +119,7 @@ class LocalEngine:
                     '--chat-template-kwargs', '{"enable_thinking":false}', '--reasoning', 'off']
             if projector:
                 args += ['--mmproj', str(projector)]
-            progress('Lokales Modell wird geladen …')
+            progress(tr('Lokales Modell wird geladen …'))
             self._process = subprocess.Popen(args, env=environment, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
                                               stdin=subprocess.DEVNULL, **process_options())
             url = f'http://127.0.0.1:{port}'
@@ -128,7 +129,7 @@ class LocalEngine:
                     if cancelled():
                         raise AnalysisCancelled()
                     if self._process.poll() is not None:
-                        raise ValueError('llama.cpp konnte das Modell nicht laden. GGUF-Datei, Arbeitsspeicher und Runtime prüfen.')
+                        raise ValueError(tr('llama.cpp konnte das Modell nicht laden. GGUF-Datei, Arbeitsspeicher und Runtime prüfen.'))
                     try:
                         ready = local_request(url, key, '/health', timeout=.5)
                         if ready.get('status') == 'ok':
@@ -138,12 +139,12 @@ class LocalEngine:
                             self._model_identity = fingerprint
                             self.projector = projector
                             self.backend = LlamaBackend(url, key, supports_images=projector is not None)
-                            progress('Lokales Modell bereit · ' + model.name)
+                            progress(tr('Lokales Modell bereit · ') + model.name)
                             return self.backend
                     except (OSError, ValueError):
                         pass
                     time.sleep(.1)
-                raise TimeoutError('Zeitlimit beim Laden des lokalen Modells erreicht.')
+                raise TimeoutError(tr('Zeitlimit beim Laden des lokalen Modells erreicht.'))
             except BaseException:
                 self.stop()
                 raise

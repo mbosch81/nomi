@@ -1,116 +1,62 @@
 # Nomi
 
-### Jede Datei verdient einen Namen.
+### Every file deserves a name.
 
-Aus `scan_0042.pdf`, `IMG_1083.jpg` und `clip_07.mp4` werden Namen, mit denen du
-etwas anfangen kannst. Nomi erkennt Dokumentinhalte, Bildmotive und Video-Szenen,
-schlägt passende Dateinamen vor und sortiert Dateien auf Wunsch in deine Ordner.
+Turn `scan_0042.pdf`, `IMG_1083.jpg` and `clip_07.mp4` into names you can recognize.
+Nomi reads documents, describes images and samples video scenes to suggest useful
+file names. Review the proposals, edit anything you want, and confirm the changes.
 
-**Du prüfst die Vorschläge. Du entscheidest, was geändert wird.**
+[**Download Nomi for Windows and macOS →**](https://github.com/mbosch81/nomi/releases/latest)
+· [Get started](docs/START.md) · [Questions and answers](docs/FAQ.md)
 
-[**Nomi für Windows und macOS herunterladen →**](https://github.com/mbosch81/nomi/releases/latest)
-· [In wenigen Schritten starten](docs/START.md)
-· [Fragen und Antworten](docs/FAQ.md)
+Free and open source · Local AI · No cloud account required
 
-Kostenlos und Open Source · Lokale KI möglich · Kein Cloud-Konto für die Analyse nötig
+> **No installer:** a single EXE for Windows and an app ZIP for Apple Silicon Macs.
+> The published 0.11.0 Windows preview does not include native OCR or folder
+> organization. These features, together with English/German interface selection,
+> are being added for the next release. [Check download requirements](docs/DOWNLOAD.md).
 
-> **Ohne Installer:** Windows als einzelne EXE, macOS als App im ZIP.
-> Öffentlich und ohne GitHub-Anmeldung herunterladen. Windows ist zunächst eine
-> technische Vorschau; Scan-OCR und Einsortieren sind dort noch nicht enthalten.
-> [Downloads und Voraussetzungen](docs/DOWNLOAD.md)
+## Find your files again
 
-![Vom Import über den Namensvorschlag bis zur geprüften Ablage](docs/images/workflow.svg)
+- Name invoices, letters and contracts using their date, sender or document type.
+- Describe photos and videos, even when they contain no text.
+- Import files or folders, optionally including subfolders.
+- Edit proposals, adjust table columns and deselect files before making changes.
+- Choose your own naming templates and optional destination folders.
+- Review changes before confirming. Existing files are never overwritten.
+- Undo changes during the current session.
 
-## Weniger suchen. Dateien wiederfinden.
+## How it works
 
-- **Rechnungen und Verträge verständlich benennen.** Datum, Absender, Dokumenttyp
-  oder Rechnungsnummer können Teil des Namens werden.
-- **Fotos und Videos beschreiben lassen.** Nomi erkennt sichtbare Motive auch dann,
-  wenn kein Text vorhanden ist.
-- **Ganze Ordner gemeinsam bearbeiten.** Vorschläge ansehen, einzelne Dateien
-  abwählen und Namen direkt korrigieren.
-- **Eine einheitliche Ablage schaffen.** Eigene Namensregeln und Ordner wie
-  `2026/Rechnung` verwenden.
-- **Die Kontrolle behalten.** Vor der Ausführung zeigt Nomi die Änderungen;
-  bestehende Dateien werden nicht überschrieben. Rückgängig ist in derselben
-  geöffneten Sitzung möglich.
+1. Open Nomi and add files or drag in a folder.
+2. Click **Analyze selected**. Nomi downloads a suitable local model when needed.
+3. Check the proposed names alongside the file preview.
+4. Click **Rename selected**, review the complete plan, then confirm.
 
-Beispiele mit fiktiven Inhalten und angepassten Vorlagen:
+Use the gear button for settings: language, naming rules, AI, images, video frame
+count, OCR, a watched inbox folder and optional organization. Language changes
+apply after restarting Nomi. The watched folder imports files; it never renames
+or analyzes them automatically.
 
-| Vorher | Möglicher neuer Name |
-| --- | --- |
-| `scan_0042.pdf` | `2026-10-16_Mueller_GmbH_Rechnung_R-42.pdf` |
-| `IMG_1083.jpg` | `Haus_mit_rotem_Dach.jpg` |
-| `clip_07.mp4` | `Video_Fahrradtour_am_See.mp4` |
+## Your files, your choice
 
-## So benutzt du Nomi
+Local analysis runs on your computer using the included llama.cpp runtime. Model
+weights are downloaded separately from Hugging Face. Once downloaded, local
+analysis needs no network connection. You can also connect Nomi to an existing
+Ollama server; document excerpts and image/video samples are then sent to that
+configured server. Check any upstream router's privacy settings.
 
-1. **Dateien hinzufügen.** Dateien oder Ordner ins Fenster ziehen. Unterordner
-   lassen sich bei Bedarf einbeziehen.
-2. **Auswahl analysieren.** Nomi erstellt Vorschläge im Hintergrund. Beim ersten
-   lokalen Durchlauf werden die benötigten KI-Modelle heruntergeladen.
-3. **Vorschläge prüfen.** Die Vorschau hilft beim Abgleich. Namen sind editierbar;
-   unerwünschte Dateien kannst du abwählen.
-4. **Änderungen bestätigen.** **Auswahl umbenennen** öffnet die Übersicht. Erst
-   **Jetzt umbenennen** beziehungsweise **Jetzt ausführen** verändert deine Dateien.
+Supported inputs: text and scanned PDFs, DOCX, TXT, Markdown, CSV, PNG, JPEG and
+common video containers. Video analysis samples frames; it does not transcribe
+sound. OCR uses Apple Vision on macOS and, in the upcoming Windows version, the
+Windows OCR engine. Available recognition languages depend on your operating
+system. Tesseract is optional. FFmpeg is included.
 
-Für den Einstieg brauchst du beim fertigen Mac-Paket weder Python noch eine
-separate Installation von Ollama, Tesseract oder FFmpeg.
-[Die erste Einrichtung Schritt für Schritt →](docs/START.md)
+## Learn more
 
-## Was kannst du importieren?
+[Downloads](docs/DOWNLOAD.md) · [Getting started](docs/START.md) ·
+[Settings](docs/SETTINGS.md) · [FAQ](docs/FAQ.md) · [Changelog](CHANGELOG.md) ·
+[Development](docs/DEVELOPMENT.md) · [Third-party notices](docs/THIRD_PARTY.md)
 
-| Dateien | Was Nomi auswertet |
-| --- | --- |
-| PDF | Dokumenttext; gescannte Seiten mit eingeschalteter Texterkennung |
-| DOCX | Text und Tabellen, auch Kopf- und Fußzeilen |
-| TXT, Markdown, CSV | Enthaltenen Text |
-| PNG, JPG, JPEG | Bildmotive oder Text über die wählbare Texterkennung |
-| MP4, MOV, M4V, MKV, WEBM, AVI, TS | Verteilte Einzelbilder aus dem Video |
-
-Die Videoanalyse wertet keinen Ton aus. Nicht jeder Video-Codec wird unterstützt.
-HEIC, DOC und ODT gehören derzeit nicht zu den unterstützten Formaten.
-[Mehr zu Formaten und Grenzen →](docs/FAQ.md)
-
-## Deine Ablage, deine Regeln
-
-Im Zahnrad-Menü findest du Vorlagen für Rechnungen, Verträge, Dokumente, Fotos und
-Videos. Passe Trennzeichen, Umlaute, Schreibweise und Namenslänge an; die
-Beispielvorschau zeigt sofort die Wirkung.
-
-Optional kannst du einen Zielordner und ein Schema wie `{jahr}/{dokumenttyp}`
-wählen. Die Bestätigung zeigt dann die vollständigen Zielpfade. Das Einsortieren
-funktioniert aktuell auf macOS/Linux innerhalb desselben Dateisystems.
-In der Windows-Vorschau ist Einsortieren deaktiviert.
-
-Ein überwachter Eingangsordner nimmt neue Dateien in die Liste auf. Analysieren
-und Umbenennen bleiben deine Entscheidung.
-[Einstellungen und Vorlagen kennenlernen →](docs/SETTINGS.md)
-
-## Lokal arbeiten
-
-Im lokalen Modus bleiben Dokumenttexte, Bilder und Video-Einzelbilder auf deinem
-Computer. Nomi lädt die benötigten Modelle einmalig herunter; danach ist die Analyse
-mit diesen Modellen auch ohne Internet möglich.
-
-Für Dokumente steht Qwen als Standard bereit, alternativ Mistral. Für Bilder und
-Videos verwendet die automatische lokale Auswahl SmolVLM2. Wer schon einen
-Ollama-Server nutzt, kann diesen stattdessen eintragen. Dann gehen die ausgewählten
-Inhalte an die konfigurierte Serveradresse.
-[Datenschutz und Speicherbedarf →](docs/FAQ.md)
-
-## Bereit zum Ausprobieren?
-
-[**Öffentliche Downloads öffnen →**](https://github.com/mbosch81/nomi/releases/latest)
-
-Nomi ist eine frühe Testversion für Macs mit Apple Silicon und Windows x64.
-Die Windows-EXE ist nicht digital signiert, die Mac-App noch nicht von Apple notarisiert. Starte mit wenigen Testkopien und prüfe die
-vorgeschlagenen Namen: KI kann Inhalte falsch erkennen oder Angaben weglassen.
-[Passenden Download finden →](docs/DOWNLOAD.md)
-
-[Fehler melden oder einen Wunsch einreichen](https://github.com/mbosch81/nomi/issues)
-· [Änderungen je Version (English)](CHANGELOG.md)
-· [Entwicklung und eigene Builds](docs/DEVELOPMENT.md)
-
-Nomi steht unter der [MIT-Lizenz](LICENSE). Enthaltene Werkzeuge und KI-Modelle
-haben eigene Lizenzbedingungen.
+Nomi is licensed under [MIT](LICENSE). AI proposals can be wrong: review names and
+try copies of your files first.

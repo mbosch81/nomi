@@ -24,7 +24,7 @@ a = Analysis(
     datas=[(str(root / 'LICENSE'), '.'), (str(root / 'README.md'), '.'),
            (str(root / 'CHANGELOG.md'), '.'), (str(root / 'docs'), 'docs')]
           + [(str(llama_directory / 'LICENSE'), 'third_party/llama.cpp')]
-          + [(str(license_directory), 'third_party/python')] + ffmpeg_data + metadata + collect_data_files('pypdfium2_raw'),
+          + [(str(license_directory), 'third_party/python')] + ffmpeg_data + metadata + collect_data_files('pypdfium2_raw') + collect_data_files('nomi', includes=['locales/*.json', 'helpers/*.ps1']),
     hiddenimports=['PIL.PdfImagePlugin', 'nomi.diagnostics'],
     excludes=['PySide6.QtWebEngineCore', 'PySide6.QtWebEngineWidgets', 'tkinter'],
 )

@@ -1,3 +1,4 @@
+from .i18n import tr
 """Deterministic filename rules and editable template presets."""
 import re
 import unicodedata
@@ -17,9 +18,9 @@ EXAMPLE = dict(datum='2026-10-16',absender='Müller & Söhne',empfaenger='Max Mu
 
 def format_name(value, source, settings):
     separator=settings.name_separator
-    if separator not in ('_', ' '):raise ValueError('Trennzeichen muss Leerzeichen oder Unterstrich sein.')
-    if settings.name_case not in ('preserve','lower','upper'):raise ValueError('Ungültige Schreibweise.')
-    if not 40 <= settings.max_name_length <= 240:raise ValueError('Namenslänge muss zwischen 40 und 240 liegen.')
+    if separator not in ('_', ' '):raise ValueError(tr('Trennzeichen muss Leerzeichen oder Unterstrich sein.'))
+    if settings.name_case not in ('preserve','lower','upper'):raise ValueError(tr('Ungültige Schreibweise.'))
+    if not 40 <= settings.max_name_length <= 240:raise ValueError(tr('Namenslänge muss zwischen 40 und 240 liegen.'))
     value=unicodedata.normalize('NFC',value)
     value=''.join(c for c in value if unicodedata.category(c) not in ('Cc','Cf'))
     value=re.sub(r'[<>:"/\\|?*]',separator,value)

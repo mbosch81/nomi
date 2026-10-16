@@ -1,3 +1,4 @@
+from .i18n import tr
 """Read-only, bounded image preparation for local or configured remote vision."""
 import base64
 from pathlib import Path
@@ -17,15 +18,15 @@ def encode_image(path: Path, cancelled=lambda:False):
     if cancelled():raise AnalysisCancelled()
     path = Path(path)
     if path.is_symlink() or not path.is_file():raise ValueError('Bild fehlt oder ist ein symbolischer Link.')
-    if path.stat().st_size > 100*1024*1024:raise ValueError('Bild ist zu groß (maximal 100 MB).')
+    if path.stat().st_size > 100*1024*1024:raise ValueError(tr('Bild ist zu groß (maximal 100 MB).'))
     reader = QImageReader(str(path))
     reader.setAutoTransform(True)
     size = reader.size()
     if not size.isValid() or size.width()*size.height() > 48_000_000:
-        raise ValueError('Bild ist beschädigt oder zu groß (maximal 48 Megapixel).')
+        raise ValueError(tr('Bild ist beschädigt oder zu groß (maximal 48 Megapixel).'))
     reader.setScaledSize(size.scaled(QSize(1024, 1024), Qt.AspectRatioMode.KeepAspectRatio))
     image = reader.read()
-    if image.isNull():raise ValueError('Bild kann nicht gelesen werden.')
+    if image.isNull():raise ValueError(tr('Bild kann nicht gelesen werden.'))
     if cancelled():raise AnalysisCancelled()
     # Composite transparency on white rather than turning document backgrounds black.
     from PySide6.QtGui import QImage, QPainter
@@ -36,7 +37,7 @@ def encode_image(path: Path, cancelled=lambda:False):
     painter.end()
     buffer = QBuffer()
     buffer.open(QIODevice.OpenModeFlag.WriteOnly)
-    if not flattened.save(buffer, 'JPEG', 85):raise ValueError('Bild kann nicht vorbereitet werden.')
+    if not flattened.save(buffer, 'JPEG', 85):raise ValueError(tr('Bild kann nicht vorbereitet werden.'))
     encoded = base64.b64encode(bytes(buffer.data())).decode('ascii')
     buffer.close()
     if cancelled():raise AnalysisCancelled()
@@ -45,7 +46,7 @@ def encode_image(path: Path, cancelled=lambda:False):
 
 def suggest_image(backend, path, settings, cancelled=lambda:False):
     if not getattr(backend, 'supports_images', False):
-        raise ValueError('Bildinhalt benötigt ein Vision-Modell. SmolVLM2 laden oder OCR auswählen.')
+        raise ValueError(tr('Bildinhalt benötigt ein Vision-Modell. SmolVLM2 laden oder OCR auswählen.'))
     encoded = encode_image(path, cancelled)
     if cancelled():raise AnalysisCancelled()
     return backend.suggest_images([(0, encoded)], settings, prompt=IMAGE_PROMPT)

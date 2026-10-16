@@ -1,3 +1,4 @@
+from .i18n import tr
 """Local model inventory; removal goes to the OS trash, never permanent delete."""
 from pathlib import Path
 from PySide6.QtCore import QFile
@@ -20,31 +21,31 @@ def installed_models(extra=None, active=None):
 def trash_model(path: Path, active=None, projector=None):
     path = path.absolute()
     if path.is_symlink() or path.parent.resolve() != model_directory().resolve() or path.suffix.lower() != '.gguf':
-        raise ValueError('Nur Modelle im Nomi-Modellordner können entfernt werden.')
+        raise ValueError(tr('Nur Modelle im Nomi-Modellordner können entfernt werden.'))
     if any(location and path.resolve() == Path(location).resolve() for location in (active, projector)):
-        raise ValueError('Das geladene Modell muss zuerst entladen werden.')
+        raise ValueError(tr('Das geladene Modell muss zuerst entladen werden.'))
     success = QFile.moveToTrash(str(path))
     if not success:
-        raise ValueError('Modell konnte nicht in den Papierkorb verschoben werden. Datei bleibt erhalten.')
+        raise ValueError(tr('Modell konnte nicht in den Papierkorb verschoben werden. Datei bleibt erhalten.'))
 
 
 class ModelManager(QDialog):
     def __init__(self, window):
         super().__init__(window)
         self.window = window
-        self.setWindowTitle('Nomi · Modelle verwalten')
+        self.setWindowTitle(tr('Nomi · Modelle verwalten'))
         self.resize(850, 380)
         layout = QVBoxLayout(self)
-        layout.addWidget(QLabel('Installierte Modelle · Größe und Ladezustand'))
+        layout.addWidget(QLabel(tr('Installierte Modelle · Größe und Ladezustand')))
         self.list = QListWidget()
-        self.list.setAccessibleName('Installierte Modelle')
+        self.list.setAccessibleName(tr('Installierte Modelle'))
         layout.addWidget(self.list)
         actions = QHBoxLayout()
-        self.use = QPushButton('Auswahl laden')
-        self.unload = QPushButton('Modell entladen')
-        self.remove = QPushButton('In Papierkorb verschieben')
-        self.refresh_button = QPushButton('Aktualisieren')
-        self.close_button = QPushButton('Schließen')
+        self.use = QPushButton(tr('Auswahl laden'))
+        self.unload = QPushButton(tr('Modell entladen'))
+        self.remove = QPushButton(tr('In Papierkorb verschieben'))
+        self.refresh_button = QPushButton(tr('Aktualisieren'))
+        self.close_button = QPushButton(tr('Schließen'))
         for button in (self.use, self.unload, self.remove, self.refresh_button, self.close_button):
             actions.addWidget(button)
         layout.addLayout(actions)
@@ -67,10 +68,10 @@ class ModelManager(QDialog):
             except OSError:
                 size = 0
             projector = getattr(self.window.local_engine, 'projector', None)
-            status = 'Geladen' if path in (active, projector) else 'Installiert'
-            if path.name.startswith('mmproj-'):status += ' · Vision-Projektor'
+            status = tr('Geladen') if path in (active, projector) else tr('Installiert')
+            if path.name.startswith('mmproj-'):status += tr(' · Vision-Projektor')
             if path.parent.resolve() != model_directory().resolve():
-                status += ' · externer Speicherort'
+                status += tr(' · externer Speicherort')
             item = QListWidgetItem(f'{path.name}\n{size/1_000_000_000:.2f} GB · {status}')
             item.setToolTip(str(path))
             self.list.addItem(item)
@@ -105,18 +106,18 @@ class ModelManager(QDialog):
         self.window.local_engine.stop()
         self.window._local_backend = None
         self.window.refresh_analysis_enabled()
-        self.window.status.setText('Lokales Modell entladen.')
+        self.window.status.setText(tr('Lokales Modell entladen.'))
         self.refresh()
 
     def remove_selected(self):
         path = self.selected()
         if not path or self.window.busy():return
-        answer = QMessageBox.question(self, 'Modell entfernen', f'{path.name} in den Papierkorb verschieben?')
+        answer = QMessageBox.question(self, tr('Modell entfernen'), f"{path.name}{tr(' in den Papierkorb verschieben?')}")
         if answer != QMessageBox.StandardButton.Yes:return
         try:
             trash_model(path, self.window.local_engine.model, getattr(self.window.local_engine, 'projector', None))
         except (ValueError, OSError) as error:
-            QMessageBox.warning(self, 'Modell entfernen', str(error))
+            QMessageBox.warning(self, tr('Modell entfernen'), str(error))
         self.refresh()
 
     def open_manager(self):

@@ -1,3 +1,4 @@
+from .i18n import tr
 """Polling inbox monitor: only imports stable files, never analyses or renames."""
 import os
 from pathlib import Path
@@ -7,7 +8,7 @@ from .core import SUPPORTED
 
 def inbox_snapshot(folder: Path, recursive: bool):
     if not folder.is_dir() or folder.is_symlink():
-        raise ValueError('Eingangsordner ist nicht erreichbar oder ein symbolischer Link.')
+        raise ValueError(tr('Eingangsordner ist nicht erreichbar oder ein symbolischer Link.'))
     result = {}
     for directory, dirs, files in os.walk(folder, followlinks=False, onerror=lambda error: (_ for _ in ()).throw(error)):
         dirs[:] = [d for d in dirs if not d.startswith('.') and not (Path(directory)/d).is_symlink()] if recursive else []
@@ -22,7 +23,7 @@ def inbox_snapshot(folder: Path, recursive: bool):
             except FileNotFoundError:
                 continue  # A producer can atomically replace a file while scanning.
             if len(result) > 5000:
-                raise ValueError('Eingangsordner enthält mehr als 5.000 unterstützte Dateien.')
+                raise ValueError(tr('Eingangsordner enthält mehr als 5.000 unterstützte Dateien.'))
     return result
 
 
@@ -40,7 +41,7 @@ class ScanTask(QRunnable):
         try:
             self.signals.done.emit(self.generation, inbox_snapshot(self.path, self.recursive), '')
         except Exception:
-            self.signals.done.emit(self.generation, {}, 'Eingangsordner nicht lesbar oder zu groß (maximal 5.000 Dateien).')
+            self.signals.done.emit(self.generation, {}, tr('Eingangsordner nicht lesbar oder zu groß (maximal 5.000 Dateien).'))
 
 
 class InboxWatcher(QObject):
@@ -67,11 +68,11 @@ class InboxWatcher(QObject):
         self._previous.clear();self._seen.clear()
         if self.folder:
             self.timer.start()
-            self.message.emit('Eingangsordner aktiv · neue stabile Dateien werden nur zur Liste hinzugefügt.')
+            self.message.emit(tr('Eingangsordner aktiv · neue stabile Dateien werden nur zur Liste hinzugefügt.'))
             self.poll()
         else:
             self.timer.stop()
-            self.message.emit('Eingangsordner nicht überwacht.')
+            self.message.emit(tr('Eingangsordner nicht überwacht.'))
 
     def poll(self):
         if not self.folder or self._active is not None or self.blocked():
@@ -95,4 +96,4 @@ class InboxWatcher(QObject):
         self._seen.update(snapshot[path] for path in ready)
         if ready:
             self.files_ready.emit(sorted(ready))
-        self.message.emit(f'Eingangsordner aktiv · {len(snapshot)} Dateien geprüft · nur Import, keine automatische Analyse.')
+        self.message.emit(f"{tr('Eingangsordner aktiv · ')}{len(snapshot)}{tr(' Dateien geprüft · nur Import, keine automatische Analyse.')}")

@@ -1,21 +1,32 @@
-## Nomi – Jede Datei verdient einen Namen.
+# Nomi — every file deserves a name
 
-Die erste öffentliche Download-Version: Dateien, Bilder und Videos mit lokaler KI verständlich benennen. Vorschläge prüfen und bearbeiten, Änderungen ausdrücklich bestätigen und innerhalb derselben Sitzung rückgängig machen.
+## Downloads
 
-### Downloads ohne Installer
+- **Windows x64:** run the single EXE; no installer or separate Python, llama.cpp,
+  Ollama or FFmpeg installation is required.
+- **Apple Silicon Mac:** extract the ZIP and open Nomi.app (macOS 14.8 or newer).
 
-- **Windows 10/11, x64: `Nomi-0.11.0-windows-x64.exe`** – einzelne EXE starten. Technische Vorschau; CPU-Ausführung. Keine separate Installation von Python, Ollama, llama.cpp oder FFmpeg erforderlich. Beim Start entpackt sich die Anwendung vorübergehend ins Temp-Verzeichnis.
-- **Mac mit Apple Silicon, macOS 14.8 oder neuer: `Nomi-0.11.0-macos-arm64.zip`** – entpacken, `Nomi.app` nach Programme ziehen und öffnen. OCR über Apple Vision ist enthalten.
-- **`SHA256SUMS.txt`** enthält die Prüfsummen der Downloads; **`LICENSE.txt`** die MIT-Lizenz von Nomi. Lizenzen und passende FFmpeg-Quellen sind zusätzlich in der Anwendung enthalten. Die optionalen `notices.zip`-Archive enthalten die Drittanbieter-Hinweise und Paketversionen.
+Model weights download separately from Hugging Face. Qwen is the default document
+model; Mistral is also available. SmolVLM2 handles images and sampled video frames.
 
-KI-Modelle werden getrennt heruntergeladen: etwa 2,5 GB für Qwen, für Bild-/Videoanalyse zusätzlich etwa 1,7 GB. Mistral ist optional. Ein Cloud-Konto ist nicht erforderlich.
+## Next version
 
-### Grenzen dieser Version
+- Choose German or English in General settings; restart Nomi to apply the language.
+- Central translation catalog for additional languages.
+- Built-in Windows OCR using the operating system's available recognition languages.
+- Safe organization into local destination folders on Windows, with confirmation,
+  collision protection, rollback and undo.
+- Platform-neutral local-analysis wording and English documentation.
 
-- Windows ist eine erste technische Vorschau: Text-PDFs, DOCX, Textdateien sowie Bilder und Videos mit Vision-Modell. Scan-OCR wird dort nicht mitgeliefert; optional kann vorhandenes Tesseract verwendet werden. Einsortieren in andere Ordner ist dort deaktiviert. Umbenennen und Rückgängig funktionieren im ursprünglichen Ordner auf Dateisystemen mit Hardlink-Unterstützung, beispielsweise NTFS.
-- Die Windows-EXE ist nicht digital signiert. Die Mac-App ist ad hoc signiert, aber noch nicht mit Apple Developer ID signiert oder notarisiert. Die Betriebssysteme können deshalb Sicherheitsmeldungen anzeigen.
-- Keine Pakete für Intel-Macs, Windows ARM oder Linux. Die KI kann falsche Vorschläge machen: zunächst Testkopien verwenden.
+## Limits
 
-Automatische Prüfungen erfolgen mit synthetischen Dateien. Die Windows-EXE wird auf Windows Server 2022 gebaut und mit Qt, PDF/DOCX-/Bild-/Videovorschau, sicherem Umbenennen, Rückgängig und tatsächlicher Qwen-Inferenz geprüft. Zusätzlich wurde die öffentliche EXE auf Windows 11 Pro (Build 26200) per RDP mit synthetischen TXT-, Markdown- und CSV-Dateien geprüft: Ordnerimport, Textvorschau, Modelldownload und lokale Qwen-Analyse, Abbruch und Wiederaufnahme, Umbenennung nach Bestätigung, Rückgängig mit identischen Originalnamen und SHA-256-Prüfsummen, Einstellungsnavigation, veränderbare Spaltenbreiten und geordnetes Beenden. Windows 10 sowie Bild-/Video-KI und ein externes Ollama-Backend wurden in diesem Desktop-Test nicht geprüft. Die Mac-App wird auf macOS 14 gebaut und einschließlich OCR, Einsortieren und Rückgängig geprüft.
+Windows OCR languages depend on installed Windows language packs. Windows
+organization supports local drives, not network shares. Source and destination
+must be on the same filesystem/drive. Symbolic links and junctions are rejected.
+Video analysis samples frames and does not transcribe audio. Review AI proposals
+before confirming changes; undo is available during the current session.
 
-[Erste Schritte](https://github.com/mbosch81/nomi/blob/main/docs/START.md) · [Download-Hilfe](https://github.com/mbosch81/nomi/blob/main/docs/DOWNLOAD.md) · [Changelog](https://github.com/mbosch81/nomi/blob/main/CHANGELOG.md) · [Probleme melden](https://github.com/mbosch81/nomi/issues)
+The Windows EXE is unsigned. The Mac app is ad hoc signed, without Apple Developer
+ID signing or notarization. No Intel Mac, Windows ARM or Linux binaries are provided.
+The existing 0.11.0 assets retain their original feature limits; these next-version
+changes require a new package. See the README and changelog for current status.

@@ -24,9 +24,13 @@ The native OCR helper requires Apple's command-line development tools and Swift
 at build time. FFmpeg is built from source using the local compiler and `make`.
 Those tools are not required by users of the packaged application.
 
-On Linux and Windows, OCR can use separately installed Tesseract and language data.
+On Windows, automatic OCR uses Windows.Media.Ocr through the shipped PowerShell
+helper. It uses OS language packs and requires no separate OCR program. Tesseract
+remains optional on all supported platforms; Linux needs it for OCR.
 The Windows preview bundles llama.cpp CPU x64 and the same minimal LGPL-only
-FFmpeg build. Folder organization remains POSIX-only and is disabled in Windows UI.
+FFmpeg build. Folder organization uses pinned directory descriptors on POSIX and native guarded
+handles with non-replacing SetFileInformationByHandle moves on Windows. Windows
+junctions/reparse points and network shares are rejected.
 No Linux binary package is published.
 
 ## Build the Mac application
@@ -171,15 +175,15 @@ The [release workflow](../.github/workflows/release.yml) builds both platforms,
 runs the full suite (with documented platform-specific skips), and tests the actual
 packages without external runtime tools on PATH. Windows additionally downloads
 the pinned Qwen model and performs actual inference, rename and undo in the EXE.
-Windows OCR and folder organization are explicitly unavailable in the bundled
-preview; optional Tesseract remains configurable. Windows Server 2022 CI coverage
+The next version includes native Windows OCR and local-drive folder organization;
+optional Tesseract remains configurable. Windows Server 2022 CI coverage
 is complemented by a Windows 11 Pro (build 26200) desktop check of the public
 0.11.0 EXE: synthetic TXT/Markdown/CSV folder import and preview, Qwen download
 and inference, cancellation/resume, confirmation before rename, undo with original
 paths and SHA-256 hashes, settings navigation, column resizing, and graceful exit.
 Windows 10, image/video inference and external Ollama were not exercised in that
-desktop check. The Windows main-window hint still incorrectly says “Mac”; this is
-a known wording issue in 0.11.0.
+desktop check. The 0.11.0 Windows hint incorrectly said “Mac”; the next version uses
+platform-neutral wording.
 
 Dispatch **Release packages** with `publish=false` to validate without publication.
 With `publish=true`, both checked assets are combined into a public release whose
@@ -195,3 +199,27 @@ and FAQ. Technical details belong here. Keep the [English changelog](../CHANGELO
 updated for application versions; documentation-only changes can be listed under
 Unreleased without increasing the application version. Verify download links and
 platform requirements against the actual artifact before making support claims.
+
+
+## Interface translations
+
+`nomi/locales/translations.json` is the central catalog. German source messages are
+stable keys; the English locale supplies translations, and German falls back to
+its source keys. New English platform errors have German entries. Add another
+locale with a native display name and a `messages` mapping; the settings selector
+discovers it automatically. `nomi.i18n.tr()` translates only application messages,
+never user paths, document text or AI metadata. Keep all template field identifiers
+and format placeholders intact. Language is stored separately from analysis
+settings and takes effect on restart. Qt's matching translation catalog localizes
+standard dialog buttons. Tests cover labels, persisted preferences and placeholders.
+
+## Windows organization safety
+
+The Windows path guard opens every ancestor with OPEN_REPARSE_POINT and denies
+FILE_SHARE_DELETE. This rejects junctions and pins directories during each move.
+A source handle denies write/delete sharing; SetFileInformationByHandle renames it
+with ReplaceIfExists=false. There is no copy/delete or overwrite fallback. Undo
+uses the same primitive; cleanup deletes only matching empty created directories
+by handle. Native Windows tests exercise collision, junction, parent replacement,
+rollback, restoration and empty-folder cleanup. Unsupported filesystems fail
+without weakening these checks.

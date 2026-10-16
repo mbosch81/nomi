@@ -1,5 +1,6 @@
 """File extraction, provider boundary and conservative rename operations."""
 from __future__ import annotations
+from .i18n import tr
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Protocol, Callable
@@ -57,11 +58,11 @@ class Backend(Protocol):
 def validate_template(template: str):
     fields = re.findall(r'\{([^{}]+)\}', template)
     if not fields or set(fields) - set(FIELDS):
-        raise ValueError('Schema benötigt gültige Felder: datum, absender, dokumenttyp, titel, empfaenger, kennung.')
+        raise ValueError(tr('Schema benötigt gültige Felder: datum, absender, dokumenttyp, titel, empfaenger, kennung.'))
     try:
         template.format(**dict.fromkeys(FIELDS, ''))
     except (KeyError, ValueError):
-        raise ValueError('Ungültiges Namensschema.')
+        raise ValueError(tr('Ungültiges Namensschema.'))
 
 def safe_stem(value: str) -> str:
     value = unicodedata.normalize('NFC', value)
@@ -72,7 +73,7 @@ def safe_stem(value: str) -> str:
     while len(value.encode('utf-8')) > 180:
         value = value[:-1]
     if not value or value.split('.')[0].upper() in RESERVED:
-        raise ValueError('Kein gültiger Dateiname erzeugt.')
+        raise ValueError(tr('Kein gültiger Dateiname erzeugt.'))
     return value
 
 def normalize_date(value: str) -> str:
@@ -85,12 +86,12 @@ def normalize_date(value: str) -> str:
     else:
         match = re.fullmatch(r'(\d{4})-(\d{1,2})-(\d{1,2})', value)
         if not match:
-            raise ValueError('KI lieferte ein ungültiges Datumsformat.')
+            raise ValueError(tr('KI lieferte ein ungültiges Datumsformat.'))
         year, month, day = map(int, match.groups())
     try:
         return date(year, month, day).isoformat()
     except ValueError:
-        raise ValueError('KI lieferte ein ungültiges Datum.')
+        raise ValueError(tr('KI lieferte ein ungültiges Datum.'))
 
 
 def grounded_date(value: str, text: str) -> tuple[str, str]:
@@ -115,7 +116,7 @@ def grounded_date(value: str, text: str) -> tuple[str, str]:
     ]
     matches = [m for pattern in patterns for m in re.finditer(pattern, text, re.IGNORECASE)]
     if not matches:
-        return '', 'Datum nicht im Text belegt — weggelassen'
+        return '', tr('Datum nicht im Text belegt — weggelassen')
     negative = r'\b(?:beginn\w*|beginnt|mietzeit|laufzeit|zahlung\s+ab|(?:abrechnungs)?zeitraum|geburt\w*|gültig\s+ab|versicherungsbeginn)\b'
     positive = r'\b(?:ausstellungsdatum|rechnungsdatum|briefdatum|datum|unterschrift|unterzeichnet|erstellt\s+am|ausgestellt\s+am)\b'
     for match in matches:
@@ -133,7 +134,7 @@ def make_name(data: dict, source: Path, template: str, settings=None) -> str:
     for key in FIELDS:
         value = data.get(key, '')
         if not isinstance(value, str):
-            raise ValueError('KI-Antwort enthält ungültige Felder.')
+            raise ValueError(tr('KI-Antwort enthält ungültige Felder.'))
         value = value.strip()
         values[key] = '' if value.casefold() in PLACEHOLDERS else value
     values['datum'] = normalize_date(values['datum'])
@@ -172,15 +173,15 @@ def available_name(source: Path, name: str, reserved: set[str], settings=None, d
 
 def validate_name(source: Path, name: str) -> Path:
     if not name or name != name.strip() or Path(name).name != name:
-        raise ValueError('Nur ein Dateiname ohne Pfad ist erlaubt.')
+        raise ValueError(tr('Nur ein Dateiname ohne Pfad ist erlaubt.'))
     if re.search(r'[<>:"/\\|?*\x00-\x1f]', name) or name.endswith((' ', '.')):
-        raise ValueError('Dateiname enthält ungültige Zeichen.')
+        raise ValueError(tr('Dateiname enthält ungültige Zeichen.'))
     if Path(name).suffix != source.suffix:
-        raise ValueError('Die Dateiendung muss erhalten bleiben.')
+        raise ValueError(tr('Die Dateiendung muss erhalten bleiben.'))
     if Path(name).stem.split('.')[0].upper() in RESERVED or name.startswith('.'):
-        raise ValueError('Reservierter oder versteckter Dateiname.')
+        raise ValueError(tr('Reservierter oder versteckter Dateiname.'))
     if len(name.encode('utf-8')) > 240:
-        raise ValueError('Dateiname ist zu lang.')
+        raise ValueError(tr('Dateiname ist zu lang.'))
     return source.with_name(name)
 
 def collect(paths: list[Path], recursive: bool) -> list[Path]:
@@ -216,7 +217,7 @@ def extract_document(path: Path, limit: int = 16000, settings: Settings | None =
         text, truncated = read_docx(path, limit, cancelled)
     elif path.suffix.lower() in IMAGE_FORMATS:
         if not settings or not settings.ocr_enabled:
-            raise ValueError('Für PNG- und JPEG-Scans bitte OCR in den Einstellungen aktivieren.')
+            raise ValueError(tr('Für PNG- und JPEG-Scans bitte OCR in den Einstellungen aktivieren.'))
         from .ocr import recognize_image, selected_backend
         text = recognize_image(path, settings, cancelled)
         used_ocr = True
@@ -227,7 +228,7 @@ def extract_document(path: Path, limit: int = 16000, settings: Settings | None =
         from pypdf import PdfReader
         reader = PdfReader(path)
         if reader.is_encrypted:
-            raise ValueError('Verschlüsseltes PDF wird nicht unterstützt.')
+            raise ValueError(tr('Verschlüsseltes PDF wird nicht unterstützt.'))
         parts = []
         size = 0
         page_count = len(reader.pages)
@@ -259,7 +260,7 @@ def extract_document(path: Path, limit: int = 16000, settings: Settings | None =
         truncated = len(text) > limit
         text = text[:limit]
     if not text.strip():
-        raise ValueError('Kein Text gefunden — OCR aktivieren oder Scanqualität prüfen.')
+        raise ValueError(tr('Kein Text gefunden — OCR aktivieren oder Scanqualität prüfen.'))
     return Extraction(text, used_ocr, truncated, ocr_backend)
 
 
@@ -279,7 +280,7 @@ def metadata_messages(text: str, hint: str = '') -> list[dict]:
 def parse_metadata(content: str, text: str) -> dict:
     data = json.loads(content)
     if not isinstance(data, dict):
-        raise ValueError('Ungültige KI-Antwort.')
+        raise ValueError(tr('Ungültige KI-Antwort.'))
     if isinstance(data.get('datum', ''), str):
         normalized, warning = grounded_date(data.get('datum', ''), text)
         data['datum'] = normalized
@@ -294,7 +295,7 @@ class OllamaBackend:
         url = settings.url.rstrip('/')
         parsed = urlsplit(url)
         if parsed.scheme not in {'http', 'https'} or not parsed.hostname or parsed.username or parsed.password or parsed.query or parsed.fragment:
-            raise ValueError('Ollama-Adresse muss eine HTTP(S)-URL ohne Zugangsdaten sein.')
+            raise ValueError(tr('Ollama-Adresse muss eine HTTP(S)-URL ohne Zugangsdaten sein.'))
         request = Request(url + route, data=None if payload is None else json.dumps(payload).encode(), headers={'Content-Type': 'application/json'})
         with urlopen(request, timeout=settings.timeout) as response:
             return json.load(response)
@@ -304,7 +305,7 @@ class OllamaBackend:
 
     def suggest(self, text: str, settings: Settings) -> dict:
         if not settings.model.strip():
-            raise ValueError('Bitte ein Ollama-Modell auswählen.')
+            raise ValueError(tr('Bitte ein Ollama-Modell auswählen.'))
         schema = metadata_schema()
         result = self.request(settings, '/api/chat', {
             'model': settings.model, 'stream': False, 'format': schema,
@@ -315,7 +316,7 @@ class OllamaBackend:
 
     def suggest_images(self, frames, settings, *, prompt=None):
         from .video import VIDEO_PROMPT
-        if not settings.model.strip():raise ValueError('Bitte ein Ollama-Vision-Modell auswählen.')
+        if not settings.model.strip():raise ValueError(tr('Bitte ein Ollama-Vision-Modell auswählen.'))
         result = self.request(settings, '/api/chat', {
             'model': settings.model, 'stream': False, 'format': metadata_schema(),
             'options': {'temperature': 0, 'num_predict': 600},
@@ -352,7 +353,7 @@ class RenameError(RuntimeError):
     """A failed operation with any remaining moves available for recovery."""
     def __init__(self, cause, records):
         self.records = records
-        detail = '; Rückabwicklung unvollständig: ' + ', '.join(r.after.name for r in records) if records else ''
+        detail = tr('; Rückabwicklung unvollständig: ') + ', '.join(r.after.name for r in records) if records else ''
         super().__init__(str(cause) + detail)
 
 
@@ -363,16 +364,16 @@ def rename_batch(items: list[tuple[Path, str]]) -> list[RenameRecord]:
     for source, name in items:
         source = source.absolute()
         if source in sources:
-            raise ValueError(f'Quelldatei mehrfach ausgewählt: {source.name}')
+            raise ValueError(f"{tr('Quelldatei mehrfach ausgewählt: ')}{source.name}")
         sources.add(source)
         target = validate_name(source, name)
         if source == target:
             continue
         key = str(target).casefold()
         if key in targets or target.exists() or target.is_symlink():
-            raise ValueError(f'Namenskonflikt: {target.name}')
+            raise ValueError(f"{tr('Namenskonflikt: ')}{target.name}")
         if not source.is_file() or source.is_symlink():
-            raise ValueError(f'Quelldatei fehlt: {source.name}')
+            raise ValueError(f'{tr("Quelldatei fehlt: ")}{source.name}' )
         targets.add(key)
         plan.append((source, target))
     records = []
@@ -395,9 +396,9 @@ def rename_batch(items: list[tuple[Path, str]]) -> list[RenameRecord]:
 def undo(records: list[RenameRecord]):
     for record in records:
         if record.before.exists() or record.before.is_symlink():
-            raise ValueError(f'Originalname ist bereits belegt: {record.before.name}')
+            raise ValueError(f'{tr("Originalname ist bereits belegt: ")}{record.before.name}' )
         if not record.after.is_file() or record.after.is_symlink() or identity(record.after) != record.identity:
-            raise ValueError(f'Datei wurde verändert: {record.after.name}')
+            raise ValueError(f"{tr('Datei wurde verändert: ')}{record.after.name}")
     completed = []
     try:
         for record in reversed(records):

@@ -1,3 +1,4 @@
+from .i18n import tr
 """Explicit same-filesystem organization; no copying, overwriting or symlink traversal."""
 import os
 from pathlib import Path
@@ -14,14 +15,14 @@ def destination_for(source, name, metadata, settings):
     source=Path(source).absolute()
     validate_name(source,name)
     if not settings.organize_enabled:return source.with_name(name)
-    if not settings.organize_root.strip():raise ValueError('Bitte einen vorhandenen Zielordner auswählen.')
+    if not settings.organize_root.strip():raise ValueError(tr('Bitte einen vorhandenen Zielordner auswählen.'))
     root=Path(settings.organize_root).expanduser().absolute()
     template=settings.folder_template
     if not template:return root/name
     if metadata is None:raise ValueError('Zum Einsortieren bitte zuerst analysieren.')
-    if template.startswith('/') or '\\' in template:raise ValueError('Ordnerschema muss ein relativer Pfad sein.')
+    if template.startswith('/') or '\\' in template:raise ValueError(tr('Ordnerschema muss ein relativer Pfad sein.'))
     parts=template.split('/')
-    if len(parts)>8 or any(part.strip() in ('','.','..') for part in parts):raise ValueError('Ungültige Ordnerstruktur (maximal 8 Ebenen).')
+    if len(parts)>8 or any(part.strip() in ('','.','..') for part in parts):raise ValueError(tr('Ungültige Ordnerstruktur (maximal 8 Ebenen).'))
     values={field:str(metadata.get(field,'') or '') for field in FIELDS}
     try:date=normalize_date(values['datum'])
     except ValueError:date=''
@@ -37,7 +38,7 @@ def destination_for(source, name, metadata, settings):
             parsed=list(Formatter().parse(part))
             if any(field is not None and (field not in FOLDER_FIELDS or spec or conversion) for _,field,spec,conversion in parsed):raise ValueError()
             rendered=part.format(**values)
-        except (KeyError,ValueError,IndexError):raise ValueError('Ungültige Felder im Ordnerschema.')
+        except (KeyError,ValueError,IndexError):raise ValueError(tr('Ungültige Felder im Ordnerschema.'))
         folders.append(format_name(rendered,Path('folder.txt'),folder_settings)[:-4])
     return root.joinpath(*folders,name)
 
@@ -45,8 +46,8 @@ def destination_for(source, name, metadata, settings):
 def open_directory(path, create=False, created=None):
     """Walk from the filesystem root with O_NOFOLLOW, holding directory descriptors."""
     path=Path(path).absolute()
-    if '..' in path.parts:raise ValueError('Übergeordnete Pfadsegmente sind nicht erlaubt.')
-    if os.name!='posix':raise ValueError('Sicheres Einsortieren ist derzeit für macOS/Linux verfügbar.')
+    if '..' in path.parts:raise ValueError(tr('Übergeordnete Pfadsegmente sind nicht erlaubt.'))
+    if os.name!='posix':raise ValueError(tr('Sicheres Einsortieren ist derzeit für macOS/Linux verfügbar.'))
     flags=os.O_RDONLY|os.O_DIRECTORY|os.O_NOFOLLOW
     fd=os.open(path.anchor,flags)
     current=Path(path.anchor)
@@ -70,14 +71,17 @@ def open_directory(path, create=False, created=None):
 
 
 def validate_destination(source,target,root):
+    if os.name == 'nt':
+        from .windows_files import validate_destination as windows_validate_destination
+        return windows_validate_destination(source,target,root)
     source,target,root=map(lambda p:Path(p).absolute(),(source,target,root))
     target.relative_to(root)
-    if '..' in target.parts:raise ValueError('Ungültiger Zielpfad.')
+    if '..' in target.parts:raise ValueError(tr('Ungültiger Zielpfad.'))
     root_fd=open_directory(root)
     try:device=os.fstat(root_fd).st_dev
     finally:os.close(root_fd)
     if source.is_symlink() or not source.is_file():raise ValueError('Quelldatei fehlt oder ist ein symbolischer Link.')
-    if source.stat().st_dev!=device:raise ValueError('Ziel muss auf demselben Laufwerk wie die Quelle liegen.')
+    if source.stat().st_dev!=device:raise ValueError(tr('Ziel muss auf demselben Laufwerk wie die Quelle liegen.'))
     source_fd=open_directory(source.parent);os.close(source_fd)
     parent=target.parent
     while True:
@@ -86,30 +90,33 @@ def validate_destination(source,target,root):
             if parent==root:raise
             parent=parent.parent
     try:
-        if os.fstat(fd).st_dev!=device:raise ValueError('Ziel liegt auf einem anderen Laufwerk.')
+        if os.fstat(fd).st_dev!=device:raise ValueError(tr('Ziel liegt auf einem anderen Laufwerk.'))
         if parent==target.parent and source!=target:
             if any(name.casefold()==target.name.casefold() for name in os.listdir(fd)):
-                raise ValueError('Ziel existiert bereits.')
+                raise ValueError(tr('Ziel existiert bereits.'))
     finally:os.close(fd)
     validate_name(source,target.name)
 
 
 def secure_move(source,target):
     """Reserve the destination atomically, then unlink the verified source."""
+    if os.name == 'nt':
+        from .windows_files import secure_move as windows_secure_move
+        return windows_secure_move(source,target)
     source,target=Path(source),Path(target)
     source_fd=open_directory(source.parent)
     try:
         target_fd=open_directory(target.parent)
         try:
             before=os.stat(source.name,dir_fd=source_fd,follow_symlinks=False)
-            if not stat.S_ISREG(before.st_mode):raise ValueError('Quelle ist keine reguläre Datei.')
+            if not stat.S_ISREG(before.st_mode):raise ValueError(tr('Quelle ist keine reguläre Datei.'))
             expected=(before.st_dev,before.st_ino,before.st_size,before.st_mtime_ns)
             os.link(source.name,target.name,src_dir_fd=source_fd,dst_dir_fd=target_fd,follow_symlinks=False)
             try:
                 linked=os.stat(target.name,dir_fd=target_fd,follow_symlinks=False)
                 current=os.stat(source.name,dir_fd=source_fd,follow_symlinks=False)
                 if any((st.st_dev,st.st_ino,st.st_size,st.st_mtime_ns)!=expected for st in (linked,current)):
-                    raise ValueError('Quelle wurde während der Aktion verändert.')
+                    raise ValueError(tr('Quelle wurde während der Aktion verändert.'))
                 os.unlink(source.name,dir_fd=source_fd)
             except BaseException:
                 # Only remove the link created by this operation, never a replacement.
@@ -121,6 +128,9 @@ def secure_move(source,target):
 
 
 def cleanup_created(directories):
+    if os.name == 'nt':
+        from .windows_files import cleanup_created as windows_cleanup_created
+        return windows_cleanup_created(directories)
     for path,expected in sorted(set(directories),key=lambda item:len(item[0].parts),reverse=True):
         try:
             fd=open_directory(path.parent)
@@ -132,6 +142,9 @@ def cleanup_created(directories):
 
 
 def organize_batch(items,root):
+    if os.name == 'nt':
+        from .windows_files import organize_batch as windows_organize_batch
+        return windows_organize_batch(items,root)
     root=Path(root).absolute()
     root_fd=open_directory(root)
     try:
@@ -140,11 +153,11 @@ def organize_batch(items,root):
     sources=set();targets=set();plan=[]
     for source,target in items:
         source,target=Path(source).absolute(),Path(target).absolute()
-        if source in sources:raise ValueError('Quelle mehrfach ausgewählt.')
+        if source in sources:raise ValueError(tr('Quelle mehrfach ausgewählt.'))
         sources.add(source)
         validate_destination(source,target,root)
         key=str(target).casefold()
-        if key in targets:raise ValueError('Ziel mehrfach vergeben.')
+        if key in targets:raise ValueError(tr('Ziel mehrfach vergeben.'))
         targets.add(key)
         if source!=target:plan.append((source,target,identity(source)))
     created=[];records=[]
@@ -153,11 +166,11 @@ def organize_batch(items,root):
             root_fd=open_directory(root)
             try:
                 st=os.fstat(root_fd)
-                if (st.st_dev,st.st_ino)!=root_identity:raise ValueError('Zielordner wurde ausgetauscht.')
+                if (st.st_dev,st.st_ino)!=root_identity:raise ValueError(tr('Zielordner wurde ausgetauscht.'))
             finally:os.close(root_fd)
             fd=open_directory(target.parent,True,created);os.close(fd)
             validate_destination(source,target,root)
-            if identity(source)!=expected:raise ValueError('Quelle wurde vor der Aktion verändert.')
+            if identity(source)!=expected:raise ValueError(tr('Quelle wurde vor der Aktion verändert.'))
             secure_move(source,target)
             records.append(RenameRecord(source,target,expected,organized=True))
     except Exception as cause:

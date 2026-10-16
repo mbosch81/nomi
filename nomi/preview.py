@@ -1,3 +1,4 @@
+from .i18n import tr
 """Read-only local previews, loaded in a separate worker without OCR or network."""
 from pathlib import Path
 from PySide6.QtCore import QObject, QRunnable, QThreadPool, Signal, Qt, QSize
@@ -8,7 +9,7 @@ from PySide6.QtWidgets import (QWidget, QVBoxLayout, QHBoxLayout, QLabel, QPushB
 
 def load_preview(path: Path, page: int = 0, cancelled=lambda:False) -> dict:
     if path.is_symlink() or not path.is_file():
-        raise ValueError('Datei nicht mehr vorhanden oder symbolischer Link.')
+        raise ValueError(tr('Datei nicht mehr vorhanden oder symbolischer Link.'))
     suffix = path.suffix.lower()
     from .core import VIDEO_FORMATS
     if suffix in VIDEO_FORMATS:
@@ -16,27 +17,27 @@ def load_preview(path: Path, page: int = 0, cancelled=lambda:False) -> dict:
         from .video import sample_frames
         with sample_frames(path, 1, timeout=15, cancelled=cancelled) as frames:
             image = QImage.fromData(base64.b64decode(frames[0][1]), 'JPEG')
-        if image.isNull():raise ValueError('Video-Vorschau kann nicht angezeigt werden.')
+        if image.isNull():raise ValueError(tr('Video-Vorschau kann nicht angezeigt werden.'))
         return {'image': image, 'page': 0, 'pages': 1, 'video': True}
     if suffix == '.pdf':
         from PySide6.QtPdf import QPdfDocument
         if path.stat().st_size > 200 * 1024 * 1024:
-            raise ValueError('PDF ist für die Vorschau zu groß (maximal 200 MB).')
+            raise ValueError(tr('PDF ist für die Vorschau zu groß (maximal 200 MB).'))
         document = QPdfDocument(None)
         try:
             error = document.load(str(path))
             if error != QPdfDocument.Error.None_:
-                raise ValueError('PDF kann nicht angezeigt werden (beschädigt oder passwortgeschützt).')
+                raise ValueError(tr('PDF kann nicht angezeigt werden (beschädigt oder passwortgeschützt).'))
             count = document.pageCount()
             if count < 1:
-                raise ValueError('PDF enthält keine darstellbaren Seiten.')
+                raise ValueError(tr('PDF enthält keine darstellbaren Seiten.'))
             page = max(0, min(page, count - 1))
             size = document.pagePointSize(page)
             scale = min(1600 / max(size.width(), 1), 2000 / max(size.height(), 1))
             image = document.render(page, QSize(max(1, int(size.width() * scale)),
                                                max(1, int(size.height() * scale))))
             if image.isNull():
-                raise ValueError('PDF-Seite kann nicht angezeigt werden.')
+                raise ValueError(tr('PDF-Seite kann nicht angezeigt werden.'))
             return {'image': image, 'page': page, 'pages': count}
         finally:
             document.close()
@@ -45,18 +46,18 @@ def load_preview(path: Path, page: int = 0, cancelled=lambda:False) -> dict:
         reader.setAutoTransform(True)
         size = reader.size()
         if not size.isValid() or size.width() * size.height() > 48_000_000:
-            raise ValueError('Bild ist beschädigt oder zu groß (maximal 48 Megapixel).')
+            raise ValueError(tr('Bild ist beschädigt oder zu groß (maximal 48 Megapixel).'))
         reader.setScaledSize(size.scaled(1600, 2000, Qt.AspectRatioMode.KeepAspectRatio))
         image = reader.read()
         if image.isNull():
-            raise ValueError('Bild kann nicht angezeigt werden.')
+            raise ValueError(tr('Bild kann nicht angezeigt werden.'))
         return {'image': image, 'page': 0, 'pages': 1}
     if suffix == '.docx':
         from .docx_reader import read_docx
         text, truncated = read_docx(path, 256*1024)
         return {'text': text, 'truncated': truncated, 'page': 0, 'pages': 1, 'docx': True}
     if suffix not in {'.txt', '.md', '.csv'}:
-        raise ValueError('Für diesen Dateityp gibt es keine Vorschau.')
+        raise ValueError(tr('Für diesen Dateityp gibt es keine Vorschau.'))
     limit = 256 * 1024
     with path.open('rb') as handle:
         raw = handle.read(limit + 1)
@@ -86,7 +87,7 @@ class PreviewTask(QRunnable):
             data = load_preview(self.path, self.page, self.cancelled.is_set)
             error = ''
         except Exception as failure:
-            message = str(failure) if isinstance(failure, ValueError) else 'Datei kann nicht angezeigt werden.'
+            message = str(failure) if isinstance(failure, ValueError) else tr('Datei kann nicht angezeigt werden.')
             data, error = None, message
         if not self.cancelled.is_set():
             try:self.signals.ready.emit(self.request, data, error)
@@ -108,27 +109,27 @@ class PreviewPanel(QWidget):
         self._image = QImage()
         layout = QVBoxLayout(self)
         layout.setContentsMargins(8, 0, 0, 0)
-        self.title = QLabel('Dokumentvorschau')
+        self.title = QLabel(tr('Dokumentvorschau'))
         self.title.setWordWrap(True)
         self.title.setTextFormat(Qt.TextFormat.PlainText)
         layout.addWidget(self.title)
         self.name = QLineEdit()
-        self.name.setAccessibleName('Namensvorschlag bearbeiten')
-        self.name.setPlaceholderText('Namensvorschlag bearbeiten')
+        self.name.setAccessibleName(tr('Namensvorschlag bearbeiten'))
+        self.name.setPlaceholderText(tr('Namensvorschlag bearbeiten'))
         self.name.setEnabled(False)
         self.name.textEdited.connect(self.name_edited)
         layout.addWidget(self.name)
         navigation = QHBoxLayout()
-        self.previous = QPushButton('‹ Zurück')
-        self.next = QPushButton('Weiter ›')
+        self.previous = QPushButton(tr('‹ Zurück'))
+        self.next = QPushButton(tr('Weiter ›'))
         self.counter = QLabel('')
         navigation.addWidget(self.previous)
         navigation.addWidget(self.counter, 1, Qt.AlignmentFlag.AlignCenter)
         navigation.addWidget(self.next)
         layout.addLayout(navigation)
         self.zoom = QComboBox()
-        self.zoom.addItems(['Einpassen', '100 %', '150 %'])
-        self.zoom.setAccessibleName('Vorschau-Zoom')
+        self.zoom.addItems([tr('Einpassen'), '100 %', '150 %'])
+        self.zoom.setAccessibleName(tr('Vorschau-Zoom'))
         self.zoom.currentIndexChanged.connect(self._fit_image)
         layout.addWidget(self.zoom)
         self.frame_bar = QScrollArea()
@@ -140,7 +141,7 @@ class PreviewPanel(QWidget):
         self.frame_bar.hide()
         layout.addWidget(self.frame_bar)
         self.stack = QStackedWidget()
-        self.message = QLabel('Datei in der Liste auswählen.')
+        self.message = QLabel(tr('Datei in der Liste auswählen.'))
         self.message.setWordWrap(True)
         self.message.setTextFormat(Qt.TextFormat.PlainText)
         self.message.setAlignment(Qt.AlignmentFlag.AlignCenter)
@@ -157,7 +158,7 @@ class PreviewPanel(QWidget):
         self.text.setReadOnly(True)
         self.stack.addWidget(self.text)
         layout.addWidget(self.stack, 1)
-        self.note = QLabel('Vorschau lokal · Originaldatei bleibt unverändert')
+        self.note = QLabel(tr('Vorschau lokal · Originaldatei bleibt unverändert'))
         self.note.setWordWrap(True)
         layout.addWidget(self.note)
         self.previous.clicked.connect(lambda: self.turn(-1))
@@ -167,7 +168,7 @@ class PreviewPanel(QWidget):
     def _navigation(self):
         self.previous.setEnabled(self._active is None and self.page > 0)
         self.next.setEnabled(self._active is None and self.page + 1 < self.pages)
-        self.counter.setText(f'Seite {self.page + 1} / {self.pages}' if self.pages else '')
+        self.counter.setText(f"{tr('Seite ')}{self.page + 1} / {self.pages}" if self.pages else '')
 
     def show_path(self, path, page=0):
         self.set_analysis_frames([])
@@ -181,10 +182,10 @@ class PreviewPanel(QWidget):
         if self.path != old_path:
             self.name.clear()
         self.name.setEnabled(self.path is not None)
-        self.title.setText(self.path.name if self.path else 'Dokumentvorschau')
+        self.title.setText(self.path.name if self.path else tr('Dokumentvorschau'))
         self.title.setToolTip(str(self.path) if self.path else '')
-        self.note.setText('Vorschau lokal · Originaldatei bleibt unverändert')
-        self.message.setText('Vorschau wird geladen …' if self.path else 'Datei in der Liste auswählen.')
+        self.note.setText(tr('Vorschau lokal · Originaldatei bleibt unverändert'))
+        self.message.setText(tr('Vorschau wird geladen …') if self.path else tr('Datei in der Liste auswählen.'))
         self.stack.setCurrentWidget(self.message)
         self._pending = (self._request, self.path, page) if self.path else None
         self._start_pending()
@@ -208,14 +209,14 @@ class PreviewPanel(QWidget):
                 self.stack.setCurrentWidget(self.message)
             else:
                 self.page, self.pages = data['page'], data['pages']
-                if data.get('video'):self.note.setText('Video-Stichprobe · einzelnes Vorschaubild · ohne Ton')
+                if data.get('video'):self.note.setText(tr('Video-Stichprobe · einzelnes Vorschaubild · ohne Ton'))
                 if 'text' in data:
                     self.text.setPlainText(data['text'])
                     self.stack.setCurrentWidget(self.text)
                     if data.get('docx'):
-                        self.note.setText('DOCX-Textvorschau · ohne Seitenlayout und eingebettete Bilder')
+                        self.note.setText(tr('DOCX-Textvorschau · ohne Seitenlayout und eingebettete Bilder'))
                     if data.get('truncated'):
-                        self.note.setText('Textvorschau auf 256 KiB begrenzt · Original unverändert')
+                        self.note.setText(tr('Textvorschau auf 256 KiB begrenzt · Original unverändert'))
                 else:
                     self._image = data['image']
                     self.stack.setCurrentWidget(self.scroll)
@@ -236,7 +237,7 @@ class PreviewPanel(QWidget):
             button=QPushButton(f'{int(timestamp)//60:02d}:{timestamp%60:05.2f}')
             button.setIcon(QIcon(QPixmap.fromImage(image)))
             button.setIconSize(QSize(96,64))
-            button.setToolTip(f'Ausgewerteter Frame {index+1} · {timestamp:.2f} Sekunden')
+            button.setToolTip(f"{tr('Ausgewerteter Frame ')}{index + 1} · {timestamp:.2f}{tr(' Sekunden')}")
             button.clicked.connect(lambda checked=False,i=index:self.show_analysis_frame(i))
             self.frame_layout.addWidget(button)
         if frames:self.show_analysis_frame(0)
@@ -248,7 +249,7 @@ class PreviewPanel(QWidget):
         self._image=QImage.fromData(base64.b64decode(encoded),'JPEG')
         self.stack.setCurrentWidget(self.scroll)
         self._fit_image()
-        self.note.setText(f'Ausgewertete Stichprobe · Frame {index+1}/{len(self._sample_frames)} · {timestamp:.2f} s · ohne Ton')
+        self.note.setText(f"{tr('Ausgewertete Stichprobe · Frame ')}{index + 1}/{len(self._sample_frames)} · {timestamp:.2f}{tr(' s · ohne Ton')}")
 
     def shutdown(self):
         self._request += 1

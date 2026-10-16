@@ -10,6 +10,24 @@ the application version.
 
 ## [Unreleased]
 
+### Added
+
+- Central translation catalog with German and English interface languages and a
+  persistent language selector in General settings, applied after restarting.
+- Native Windows OCR using installed Windows recognition language packs, without
+  a separate OCR application, for scanned PDFs and PNG/JPEG files.
+- Safe Windows local-drive organization with guarded native handles, collision
+  protection, rollback, undo and empty-folder cleanup.
+- Native Windows filesystem tests and an independent Windows CI test job.
+
+### Fixed
+
+- Local-analysis privacy text now refers to this device on every platform.
+
+### Changed
+
+- Rewrite the README and user documentation in English.
+
 ### Documentation
 
 - Record Windows 11 desktop validation of the public 0.11.0 executable using

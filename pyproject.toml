@@ -21,3 +21,6 @@ nomi = "nomi.app:main"
 
 [tool.setuptools.packages.find]
 include = ["nomi*"]
+
+[tool.setuptools.package-data]
+nomi = ["locales/*.json", "helpers/*.ps1"]

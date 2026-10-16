@@ -1,5 +1,6 @@
 """Optional local OCR. Raster images exist only in a temporary directory."""
 from __future__ import annotations
+from .i18n import tr
 import math
 from pathlib import Path
 import re
@@ -21,9 +22,9 @@ class OcrBackend(Protocol):
 
 def effective_backend(name: str) -> str:
     if name == 'auto':
-        return 'vision' if sys.platform == 'darwin' else 'tesseract'
-    if name not in {'vision', 'tesseract'}:
-        raise ValueError('Unbekanntes OCR-Backend.')
+        return 'vision' if sys.platform == 'darwin' else ('windows' if sys.platform == 'win32' else 'tesseract')
+    if name not in {'vision', 'windows', 'tesseract'}:
+        raise ValueError(tr('Unbekanntes OCR-Backend.'))
     return name
 
 
@@ -32,15 +33,38 @@ class VisionBackend:
 
     def command(self, image: Path, settings: Settings) -> list[str]:
         if sys.platform != 'darwin':
-            raise ValueError('Apple Vision ist nur unter macOS verfügbar.')
+            raise ValueError(tr('Apple Vision ist nur unter macOS verfügbar.'))
         helper = Path(__file__).resolve().parent / 'bin' / 'nomi-vision'
         if not helper.is_file():
-            raise ValueError('Apple-Vision-Helfer fehlt. Bitte das vollständige Nomi-App-Bundle verwenden oder build_support/build_vision.py ausführen.')
+            raise ValueError(tr('Apple-Vision-Helfer fehlt. Bitte das vollständige Nomi-App-Bundle verwenden oder build_support/build_vision.py ausführen.'))
         mapping = {'deu': 'de-DE', 'eng': 'en-US', 'fra': 'fr-FR', 'spa': 'es-ES', 'ita': 'it-IT'}
         languages = [mapping.get(part, part) for part in settings.ocr_language.split('+')]
         if not languages or any(not re.fullmatch(r'[a-z]{2}-[A-Z]{2}', part) for part in languages):
-            raise ValueError('Ungültige Vision-Sprache, z.B. deu+eng oder de-DE+en-US verwenden.')
+            raise ValueError(tr('Ungültige Vision-Sprache, z.B. deu+eng oder de-DE+en-US verwenden.'))
         return [str(helper), str(image), '+'.join(languages)]
+
+
+class WindowsBackend:
+    label = 'Windows OCR'
+
+    def command(self, image: Path, settings: Settings) -> list[str]:
+        import os
+        if sys.platform != 'win32':
+            raise ValueError(tr('Windows OCR is only available on Windows.'))
+        mapping = {'deu': 'de-DE', 'eng': 'en-US', 'fra': 'fr-FR', 'spa': 'es-ES', 'ita': 'it-IT'}
+        languages = [mapping.get(part, part) for part in settings.ocr_language.split('+')]
+        if not languages or any(not re.fullmatch(r'[a-z]{2}-[A-Z]{2}', part) for part in languages):
+            raise ValueError(tr('Invalid OCR language. Use deu+eng or de-DE+en-US.'))
+        powershell = Path(os.environ.get('SystemRoot', r'C:\Windows')) / 'System32/WindowsPowerShell/v1.0/powershell.exe'
+        helper = Path(__file__).parent / 'helpers/windows_ocr.ps1'
+        if not powershell.is_file() or not helper.is_file():
+            raise ValueError(tr('Windows OCR helper is unavailable. Use the complete Nomi package.'))
+        import base64
+        # Execute our shipped script in memory; no execution-policy changes or shell.
+        quote = lambda value: "'" + value.replace("'", "''") + "'"
+        script = '& {\n' + helper.read_text(encoding='utf-8') + '\n} ' + quote(str(image.absolute())) + ' ' + quote('+'.join(languages))
+        encoded = base64.b64encode(script.encode('utf-16-le')).decode('ascii')
+        return [str(powershell), '-NoProfile', '-NonInteractive', '-EncodedCommand', encoded]
 
 
 class TesseractBackend:
@@ -55,14 +79,14 @@ class TesseractBackend:
                 if command:
                     break
         if not command:
-            raise ValueError('Tesseract fehlt. Bitte installieren oder den Programmpfad einstellen.')
+            raise ValueError(tr('Tesseract fehlt. Bitte installieren oder den Programmpfad einstellen.'))
         if not re.fullmatch(r'[A-Za-z0-9_]+(?:\+[A-Za-z0-9_]+)*', settings.ocr_language):
-            raise ValueError('Ungültige OCR-Sprache, z.B. deu+eng verwenden.')
+            raise ValueError(tr('Ungültige OCR-Sprache, z.B. deu+eng verwenden.'))
         return [command, str(image), 'stdout', '-l', settings.ocr_language]
 
 
 def selected_backend(settings: Settings) -> OcrBackend:
-    return VisionBackend() if effective_backend(settings.ocr_backend) == 'vision' else TesseractBackend()
+    return {'vision': VisionBackend, 'windows': WindowsBackend, 'tesseract': TesseractBackend}[effective_backend(settings.ocr_backend)]()
 
 
 def run_ocr(command: list[str], timeout: float, cancelled, label: str) -> str:
@@ -75,16 +99,18 @@ def run_ocr(command: list[str], timeout: float, cancelled, label: str) -> str:
             if cancelled():
                 raise AnalysisCancelled()
             if time.monotonic() - started >= timeout:
-                raise TimeoutError('Zeitlimit der OCR-Seite erreicht.')
+                raise TimeoutError(tr('Zeitlimit der OCR-Seite erreicht.'))
             try:
                 output, _ = process.communicate(timeout=.1)
                 break
             except subprocess.TimeoutExpired:
                 continue
         if process.returncode:
+            if label == 'Windows OCR' and process.returncode == 3:
+                raise ValueError(tr('OCR language unavailable. Enable an OCR language in Windows Settings.'))
             if label == 'Apple Vision' and process.returncode == 3:
-                raise ValueError('Apple Vision unterstützt die eingestellte Sprache nicht.')
-            raise ValueError(f'{label} fehlgeschlagen. Sprache und Scanqualität prüfen.')
+                raise ValueError(tr('Apple Vision unterstützt die eingestellte Sprache nicht.'))
+            raise ValueError(f"{label}{tr(' fehlgeschlagen. Sprache und Scanqualität prüfen.')}")
         return output.decode('utf-8', errors='replace')
     finally:
         if process.poll() is None:
@@ -103,7 +129,7 @@ def recognize_page(path: Path, index: int, settings: Settings, cancelled) -> str
         import pypdfium2 as pdfium
         from PIL import Image  # noqa: F401; make the optional dependency error explicit
     except ImportError:
-        raise ValueError('OCR-Zusatz fehlt. Bitte Nomi mit pip install -e ".[ocr]" installieren.')
+        raise ValueError(tr('OCR-Zusatz fehlt. Bitte Nomi mit pip install -e ".[ocr]" installieren.'))
     if cancelled():
         raise AnalysisCancelled()
     with TemporaryDirectory(prefix='nomi-ocr-') as folder:
@@ -137,7 +163,7 @@ def recognize_image(path: Path, settings: Settings, cancelled) -> str:
     try:
         from PIL import Image, ImageOps, UnidentifiedImageError
     except ImportError:
-        raise ValueError('OCR-Zusatz fehlt. Bitte Nomi mit pip install -e ".[ocr]" installieren.')
+        raise ValueError(tr('OCR-Zusatz fehlt. Bitte Nomi mit pip install -e ".[ocr]" installieren.'))
     if cancelled():
         raise AnalysisCancelled()
     with TemporaryDirectory(prefix='nomi-image-ocr-') as folder:
@@ -145,9 +171,9 @@ def recognize_image(path: Path, settings: Settings, cancelled) -> str:
         try:
             with Image.open(path) as source:
                 if source.format not in {'PNG', 'JPEG'}:
-                    raise ValueError('Nur PNG- und JPEG-Bilddateien werden unterstützt.')
+                    raise ValueError(tr('Nur PNG- und JPEG-Bilddateien werden unterstützt.'))
                 if source.width * source.height > 48_000_000:
-                    raise ValueError('Bild ist zu groß (maximal 48 Megapixel).')
+                    raise ValueError(tr('Bild ist zu groß (maximal 48 Megapixel).'))
                 with ImageOps.exif_transpose(source) as oriented:
                     scale = min(1, math.sqrt(12_000_000 / max(oriented.width * oriented.height, 1)))
                     oriented.thumbnail((max(1, int(oriented.width * scale)), max(1, int(oriented.height * scale))))
@@ -155,7 +181,7 @@ def recognize_image(path: Path, settings: Settings, cancelled) -> str:
                         normalized.paste(rgba, mask=rgba.getchannel('A'))
                         normalized.save(image_path)
         except (UnidentifiedImageError, OSError, Image.DecompressionBombError):
-            raise ValueError('Bilddatei kann nicht sicher gelesen werden oder ist beschädigt.') from None
+            raise ValueError(tr('Bilddatei kann nicht sicher gelesen werden oder ist beschädigt.')) from None
         if cancelled():
             raise AnalysisCancelled()
         return run_ocr(backend.command(image_path, settings), settings.timeout, cancelled, backend.label)

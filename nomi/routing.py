@@ -1,3 +1,4 @@
+from .i18n import tr
 """File-type policies and lazy local model switching in the analysis worker."""
 from pathlib import Path
 from .core import VIDEO_FORMATS, IMAGE_FORMATS, AnalysisCancelled
@@ -29,8 +30,8 @@ class LocalModelRouter:
         projector = folder / spec.projector.filename if spec.projector else None
         if self.cancelled():raise AnalysisCancelled()
         if not model.is_file() or (projector and not projector.is_file()):
-            self.progress('Modell für ' + ('Bilder/Video' if vision else 'Dokumente') + ' wird heruntergeladen …')
+            self.progress(tr('Modell für ') + (tr('Bilder/Video') if vision else tr('Dokumente')) + tr(' wird heruntergeladen …'))
             model, projector = download_model_package(key, self.cancelled, self.progress)
-        self.progress('Modellwahl · ' + spec.label)
+        self.progress(tr('Modellwahl · ') + spec.label)
         options = {'projector': projector} if projector else {}
         return self.engine.start(model, self.cancelled, self.progress, **options)

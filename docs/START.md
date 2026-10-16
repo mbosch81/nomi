@@ -1,76 +1,48 @@
-# Deine ersten Dateien mit Nomi benennen
+# Getting started
 
-[← Zur Produktübersicht](../README.md) · [Download](DOWNLOAD.md) · [Hilfe](FAQ.md)
+## Open Nomi
 
-## 1. Nomi öffnen
+Download the package for your computer from the
+[public releases](https://github.com/mbosch81/nomi/releases/latest).
+On Windows, run the EXE. On macOS, extract the ZIP and move Nomi.app to Applications.
+There is no installer and no separate Python, Ollama, llama.cpp or FFmpeg setup.
+See [download requirements](DOWNLOAD.md) for platform and signing limitations.
 
-Lade den [passenden Download](DOWNLOAD.md). Unter Windows öffnest du die EXE;
-auf dem Mac entpackst du das ZIP und öffnest **Nomi.app** aus **Programme**. Für den ersten Versuch reichen drei bis fünf Kopien typischer Dateien.
+## Choose your language and model
 
-## 2. Die lokale KI verwenden
+Open the gear button. In the next version, **General → Language** offers German and
+English. Restart Nomi after changing the language. Recognition languages for OCR
+are configured separately.
 
-Öffne das **Zahnrad → KI**. Wähle **Lokal · llama.cpp** und lasse
-**Modell passend zur Datei automatisch wählen** eingeschaltet.
+Under **AI**, keep automatic model selection enabled for the easiest start.
+Qwen is the default document model, with Mistral also available. SmolVLM2 handles
+images and video frames. Missing model files download when analysis starts;
+allow several gigabytes of disk space. Only one local model stays loaded at a time.
+An existing Ollama server is optional.
 
-- **Dokumente:** Qwen ist der Standard. Mistral steht als Alternative bereit.
-- **Bilder und Videos:** Nomi verwendet SmolVLM2.
-- **Gescannte PDFs:** Schalte unter **Texterkennung** zusätzlich
-  **OCR für PDF- und Bildscans** ein. Auf dem Mac ist die Texterkennung bereits enthalten.
-  Die Windows-Vorschau enthält noch keine Scan-OCR.
+## Import and analyze
 
-Du musst keinen eigenen KI-Server einrichten. Beim ersten Analysieren lädt Nomi
-fehlende Modelle herunter. In der Statuszeile siehst du den Fortschritt. Vorhandene
-Modelle werden wiederverwendet; der erste Durchlauf dauert daher häufig länger.
+Drag files or folders onto the main window, or use **Add files** / **Select folder**.
+Enable **Include subfolders** if needed. The supported files appear in the table.
 
-Wenn du bereits einen Ollama-Server verwendest, findest du die alternative
-Einrichtung unter [KI-Einstellungen](SETTINGS.md#ki).
+Use the checkboxes to choose what to analyze. **Select all** and **Deselect all**
+change the whole selection. Click a row to preview the file. Drag column borders
+to resize them, or double-click a border to fit the contents.
 
-## 3. Dateien hinzufügen
+Click **Analyze selected**. The window remains responsive. **Cancel** stops new
+work; an active model request may finish or reach its configured timeout first.
+Completed proposals remain available. Reanalyze selected rows to retry or supply
+additional naming instructions.
 
-Ziehe Dateien oder einen Ordner ins Hauptfenster. Alternativ verwende
-**Dateien hinzufügen** oder **Ordner auswählen**. Mit **Unterordner einbeziehen**
-werden auch passende Dateien in den darunterliegenden Ordnern importiert.
+## Review and rename
 
-Die Checkboxen bestimmen, welche Dateien am nächsten Schritt teilnehmen.
-**Alle auswählen** und **Alle abwählen** helfen bei größeren Listen.
+Edit a proposal in the table or preview panel. Missing information and conflicts
+are shown in the status. Deselect any file you do not want to change.
 
-## 4. Analysieren und prüfen
+Click **Rename selected** to open the review dialog. This step leaves files
+unchanged. Check every destination and confirm with **Rename now** or
+**Confirm changes**. Existing destinations are never overwritten.
 
-Klicke auf **Auswahl analysieren**. Nomi arbeitet die Dateien im Hintergrund ab.
-
-- Wähle eine Zeile, um die Datei rechts in der Vorschau anzusehen.
-- Bearbeite den vorgeschlagenen Namen in der Tabelle oder im Feld über der Vorschau.
-- Beachte Hinweise auf fehlende Angaben oder Namenskonflikte.
-- Wähle Dateien ab, die du noch nicht ändern möchtest.
-
-Ist ein Vorschlag unpassend, markiere die betreffenden Dateien über ihre Checkboxen
-und wähle **Erneut analysieren …**. Du kannst einen Hinweis wie „kürzer benennen“
-oder „den Zweck hervorheben“ ergänzen. Diese Aktion berechnet die Vorschläge neu.
-
-Bei Videos erscheinen nach erfolgreicher Analyse die tatsächlich ausgewerteten
-Einzelbilder mit Zeitpositionen. Du kannst sie einzeln größer ansehen.
-
-## 5. Bestätigen
-
-**Auswahl umbenennen** öffnet die Übersicht der geplanten Änderungen. Prüfe dort
-alte und neue Namen. Falls du Einsortieren aktiviert hast, siehst du zusätzlich
-die vollständigen Quell- und Zielpfade.
-
-Erst **Jetzt umbenennen** beziehungsweise **Jetzt ausführen** führt die angezeigte
-Aktion aus. **Zurück** schließt die Übersicht ohne Änderung. Konflikte und ungültige
-Ziele blockieren die Bestätigung; bestehende Dateien werden nicht überschrieben.
-
-## 6. Rückgängig machen
-
-Solange Nomi geöffnet bleibt, kannst du abgeschlossene Aktionen mit **Rückgängig**
-zurücknehmen. Das gilt auch für das optionale Einsortieren.
-
-Nach dem Beenden ist diese Rückgängig-Liste nicht mehr verfügbar. Wurde eine Datei
-inzwischen außerhalb von Nomi verändert oder ist ihr ursprünglicher Name neu
-belegt, kann die Wiederherstellung blockiert sein.
-
-## Als Nächstes
-
-Passe unter **Allgemein** die [Vorlagen und Namensregeln](SETTINGS.md#allgemein) an.
-Wenn du auch eine Ordnerstruktur aufbauen möchtest, richte anschließend
-[Einsortieren](SETTINGS.md#einsortieren) ein.
+**Undo** restores names and locations during the current session. If a file has
+been changed or an original name is occupied, Nomi refuses to overwrite it.
+Resolve the conflict before retrying. Closing Nomi ends session undo availability.

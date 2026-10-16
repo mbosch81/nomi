@@ -1,138 +1,80 @@
-# Nomi an deine Ablage anpassen
+# Settings
 
-[← Zur Produktübersicht](../README.md) · [Erste Schritte](START.md) · [Hilfe](FAQ.md)
+Open settings using the gear button or the application menu. Settings are saved
+locally. Close the settings dialog to return to your files.
 
-Das **Zahnrad** öffnet die Einstellungen. Auf dem Mac geht das auch mit **⌘,**.
-Während einer Analyse oder beim Laden eines Modells sind die betroffenen Felder
-gesperrt. Einstellungen werden lokal gespeichert.
+## General
 
-## Allgemein
+The next version adds **Language**: German or English, applied after restarting
+Nomi. This controls interface text, not document contents, model output or OCR
+languages. Naming templates retain their existing field identifiers:
 
-Für **Dokumente**, **Bilder** und **Videos** gibt es getrennte Namensschemata.
-Wähle eine Vorlage und klicke auf **Vorlage übernehmen**. Rechnungen und Verträge
-passen das Dokumentenschema an; Fotos und Videos das jeweilige Bild- oder
-Videoschema. Anschließend kannst du die Vorlage bearbeiten.
-
-| Feld | Bedeutung |
+| Field | Meaning |
 | --- | --- |
-| `{datum}` | Erkanntes Dokumentdatum, zum Beispiel `2026-10-16` |
-| `{absender}` | Aussteller oder Absender |
-| `{dokumenttyp}` | Zum Beispiel Rechnung oder Vertrag |
-| `{titel}` | Kurze Beschreibung des Inhalts |
-| `{empfaenger}` | Erkannter Empfänger |
-| `{kennung}` | Belegte Kennung, zum Beispiel eine Rechnungsnummer |
+| `{datum}` | Document date |
+| `{absender}` | Sender |
+| `{empfaenger}` | Recipient |
+| `{dokumenttyp}` | Document type |
+| `{titel}` | Descriptive title |
+| `{kennung}` | Reference or document number |
 
-Beispiel für Rechnungen: `{datum}_{absender}_Rechnung_{kennung}`.
-Für Fotos eignet sich `{titel}`, für Videos etwa `Video_{titel}`.
-Unbekannte Angaben bleiben leer. Die Dateiendung bleibt erhalten.
+Example: `{datum}_{absender}_{dokumenttyp}`. Separate templates are available for
+documents, images and videos. Presets are editable. Choose spaces or underscores,
+letter case, maximum length and optional German umlaut replacement. Windows/NAS
+compatibility removes reserved names and unsafe characters.
 
-Unter den Vorlagen stellst du Leerzeichen oder Unterstriche, Schreibweise,
-Umlaut-Ersetzung, maximale Namenslänge und Windows-/NAS-Kompatibilität ein.
-Die synthetischen Beispiele zeigen die Wirkung sofort. Die Länge zählt den
-vollständigen Namen einschließlich Endung und berücksichtigt auch mehrbyteige Zeichen.
+## AI
 
-Die Regeln gelten für neue Vorschläge. Manuelle Korrekturen sind weiterhin möglich;
-Gültigkeit und maximale Länge werden vor der Ausführung erneut geprüft. Neue
-Einstellungen ändern bestehende Vorschläge nicht automatisch: Starte dafür eine
-neue Analyse. Ein leeres Bild- oder Videoschema verwendet das Dokumentenschema.
+Choose local llama.cpp or an existing Ollama server. Local runtime tools are
+included; model weights are downloaded separately and verified before use.
+Automatic selection uses Qwen or Mistral for documents and SmolVLM2 for images and
+videos. Custom GGUF models require turning off automatic selection. Image-capable
+GGUF models may also require a matching projector file.
 
-## KI
+Load at startup uses an existing model. Missing models download when analysis
+starts or when you explicitly choose download. Manage installed models to load,
+unload or move an unused Nomi-managed model to the operating system's Trash.
+External model files are not deleted.
 
-**Lokal · llama.cpp** verarbeitet deine Dateien auf deinem Computer. Die automatische
-Modellwahl verwendet das ausgewählte Textmodell für Dokumente und SmolVLM2 für
-Bilder und Videos. Es ist jeweils nur ein Modell gleichzeitig geladen.
+For Ollama, enter the server's HTTP(S) address, refresh its model list and choose
+a model. Use a vision-capable model for visual analysis. The timeout bounds each
+request. A remote server or upstream cloud router receives the selected content.
 
-| Modell | Gedacht für | Ungefährer Download |
-| --- | --- | --- |
-| Qwen3 4B | Standard für Dokumente | 2,5 GB |
-| Mistral 7B Instruct | Alternative für Dokumente | 4,4 GB |
-| SmolVLM2 2.2B samt Projektor | Bilder und Video-Einzelbilder | 1,7 GB |
+## Video and images
 
-Die Dateigröße ist keine Angabe zum gesamten Arbeitsspeicherbedarf. Ein größeres
-Modell ist auch nicht automatisch für jede Datei besser.
+Video frame count ranges from 1 to 12. More frames improve coverage but require
+more time and memory. A separate timeout limits frame extraction. FFmpeg is
+included. Audio is not analyzed; sampled frames may miss events between samples.
 
-**Beim Start laden** lädt bei automatischer Auswahl das gewählte, bereits vorhandene
-Textmodell. Fehlende Modelle werden beim Analysieren heruntergeladen. Für eigene
-GGUF-Dateien schalte die automatische Modellwahl aus und wähle Modell und gegebenenfalls
-Vision-Projektor selbst.
+Images support automatic local vision, explicit vision or text-only OCR.
+Use `{titel}` for descriptive image names. Original images are never rewritten.
 
-**Installierte Modelle verwalten …** zeigt Speicherbedarf und Ladezustand.
-Entlade ein Modell, bevor du es entfernst. Entfernen verschiebt unterstützte Dateien
-aus dem Nomi-Modellordner in den Papierkorb; externe Modelldateien werden nicht gelöscht.
+## Text recognition
 
-**Ollama · Server** ist für einen vorhandenen Server gedacht: Adresse eintragen,
-**Modelle laden** wählen und das gewünschte Modell einstellen. Bei Ollama bleibt das
-gewählte Servermodell maßgeblich; für Bilder und Videos muss es bildfähig sein.
-Die Inhalte werden dann an diese Adresse gesendet.
+Enable OCR for scanned PDFs and PNG/JPEG scans. Automatic selection uses Apple
+Vision on macOS and native Windows OCR in the upcoming Windows version. No
+separate OCR application is required. Windows recognition languages depend on
+installed Windows OCR language packs; missing languages produce a clear error.
+For mixed languages, enter e.g. `deu+eng`. Windows uses available requested
+recognizers. UI language and OCR language are independent.
 
-## Video
+Tesseract remains an optional alternative: install it separately and configure
+its executable and language data. Source installations also need the OCR extras.
 
-Wähle **1 bis 12 Einzelbilder pro Video**; Standard sind **5**. Mehr Bilder können
-mehr Szenen erfassen, brauchen aber mehr Zeit und Speicher. Das zusätzliche
-Zeitlimit begrenzt die Bildentnahme.
+## Inbox folder
 
-Die Bilder werden über die Videolänge verteilt. Nach der Analyse zeigt die Vorschau
-die verwendete Stichprobe mit Zeitpositionen. Ton wird nicht ausgewertet.
-Eine eigene FFmpeg-Installation ist bei den fertigen Mac- und Windows-Paketen nicht erforderlich.
+Watch one folder, optionally including subfolders. Stable supported files are
+added to the table. Watching never starts analysis or renaming automatically.
 
-## Bilder
+## Organize
 
-- **Automatisch:** Bei lokaler automatischer Modellwahl übernimmt das Vision-Modell
-  Motive und Szenen. Im manuellen lokalen Modus hängt das vom geladenen Modell ab;
-  ohne Vision verwendet Nomi den OCR-Weg. Bei Ollama bleibt der automatische Modus bei OCR.
-- **Bildinhalt mit Vision-Modell:** Wertet das Bild direkt aus. Bei Ollama ist dafür
-  ausdrücklich ein bildfähiges Servermodell erforderlich.
-- **Nur Text erkennen (OCR):** Geeignet für fotografierte oder gescannte Dokumente;
-  zusätzlich die Texterkennung einschalten.
+Choose an existing local destination folder and an optional relative subfolder
+template, such as `{jahr}/{dokumenttyp}`. `{jahr}` means year and `{monat}` means
+month. Missing dates use `Ohne_Datum`; other missing values use `Unsortiert`.
+These folder names remain stable across interface languages.
 
-Für Motivnamen sollte die Bildvorlage `{titel}` enthalten. Bei reiner Bildanalyse
-werden Datumsangaben konservativ weggelassen.
-
-## Texterkennung
-
-Schalte **OCR für PDF- und Bildscans** für gescannte PDFs oder Bilder im OCR-Modus ein.
-**Automatisch** verwendet im Mac-Paket die enthaltene Apple-Texterkennung.
-Deutsch und Englisch sind voreingestellt. Die Windows-Vorschau enthält noch keine
-Scan-Texterkennung; optional ist ein vorhandenes Tesseract nutzbar.
-
-PDF-Seiten mit wenig vorhandenem Text werden zusätzlich erkannt. Die Verarbeitung
-macht aus einem Scan keine neue durchsuchbare PDF und verändert nicht den Dateiinhalt.
-Tesseract ist eine separat einzurichtende Alternative für fortgeschrittene Anwender.
-
-## Eingangsordner
-
-Wähle einen Ordner und aktiviere die Überwachung; Unterordner sind optional.
-Während Nomi geöffnet ist, werden passende Dateien nach einer kurzen Stabilitätsprüfung
-in die Liste aufgenommen. Auch bereits vorhandene Dateien können importiert werden.
-
-Die Überwachung startet weder Analyse noch Umbenennung automatisch. Sie pausiert
-während Analyse und Modell-Laden. Vollständig abgeschlossene Kopiervorgänge können
-nicht in jedem Fall erkannt werden; warte bei großen laufenden Übertragungen ab.
-
-## Einsortieren
-
-Diese Funktion ist in der Windows-Vorschau deaktiviert. Auf macOS/Linux:
-
-1. Aktiviere **Beim Umbenennen in Zielordner einsortieren**.
-2. Wähle einen vorhandenen **Zielordner**.
-3. Lege das **Unterordner-Schema** fest. Die Beispielvorschau hilft bei der Kontrolle.
-
-| Schema | Mögliches Ziel unter deinem Zielordner |
-| --- | --- |
-| `{jahr}/{dokumenttyp}` | `2026/Rechnung` |
-| `{jahr}/{monat}/{absender}` | `2026/10/Mueller_GmbH` |
-| Leer lassen | Datei direkt im gewählten Zielordner |
-
-Zusätzlich zu den Namensfeldern stehen hier `{jahr}` und `{monat}` zur Verfügung.
-Die Werte stammen aus der Analyse. Fehlt das Datum, verwendet Nomi `Ohne_Datum`;
-andere fehlende Werte erhalten `Unsortiert`. Namen und Ordner folgen den eingestellten
-Namensregeln. Dynamische Ordnerfelder benötigen vorher eine erfolgreiche Analyse.
-
-Die Übersicht zeigt alle vollständigen Zielpfade. Erst die Bestätigung erstellt
-Unterordner und verschiebt die Dateien. Quelle und Ziel müssen aktuell auf demselben
-Dateisystem liegen; symbolische Links werden abgewiesen. Bestimmte USB- und Netzlaufwerke
-unterstützen die erforderliche Verschiebeoperation möglicherweise nicht.
-
-**Rückgängig** stellt Namen und Speicherorte wieder her. Nomi entfernt dabei nur
-selbst angelegte, weiterhin leere Ordner. Bereits vorhandene oder inzwischen gefüllte
-Ordner bleiben erhalten. Die Rückgängig-Liste gilt bis zum Beenden der App.
+Files move only after confirming the review dialog. Source and destination must
+be on the same filesystem/drive. Symbolic links and Windows junctions are rejected.
+The upcoming Windows implementation supports local drives; network shares are
+rejected. Undo restores original locations and removes only unchanged empty
+folders created by the operation.
