@@ -173,7 +173,13 @@ packages without external runtime tools on PATH. Windows additionally downloads
 the pinned Qwen model and performs actual inference, rename and undo in the EXE.
 Windows OCR and folder organization are explicitly unavailable in the bundled
 preview; optional Tesseract remains configurable. Windows Server 2022 CI coverage
-is not a substitute for a manual Windows 10/11 desktop acceptance test.
+is complemented by a Windows 11 Pro (build 26200) desktop check of the public
+0.11.0 EXE: synthetic TXT/Markdown/CSV folder import and preview, Qwen download
+and inference, cancellation/resume, confirmation before rename, undo with original
+paths and SHA-256 hashes, settings navigation, column resizing, and graceful exit.
+Windows 10, image/video inference and external Ollama were not exercised in that
+desktop check. The Windows main-window hint still incorrectly says “Mac”; this is
+a known wording issue in 0.11.0.
 
 Dispatch **Release packages** with `publish=false` to validate without publication.
 With `publish=true`, both checked assets are combined into a public release whose

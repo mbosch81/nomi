@@ -10,6 +10,12 @@ the application version.
 
 ## [Unreleased]
 
+### Documentation
+
+- Record Windows 11 desktop validation of the public 0.11.0 executable using
+  synthetic files, including local Qwen analysis, cancellation, rename confirmation,
+  and checksum-verified undo.
+
 ## [0.11.0] - 2026-10-16
 
 ### Added
