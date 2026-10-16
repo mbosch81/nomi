@@ -6,6 +6,7 @@ import runpy
 from PyInstaller.utils.hooks import collect_data_files, copy_metadata
 
 root = Path(SPECPATH).parent
+license_directory = runpy.run_path(str(root / 'build_support/collect_licenses.py'))['collect']()
 app_version = tomllib.loads((root / 'pyproject.toml').read_text())['project']['version']
 metadata = copy_metadata('nomi-renamer')
 # Always compile from tracked source, never reuse a developer's stale binary.
@@ -23,7 +24,7 @@ a = Analysis(
     datas=[(str(root / 'LICENSE'), '.'), (str(root / 'README.md'), '.'),
            (str(root / 'CHANGELOG.md'), '.'), (str(root / 'docs'), 'docs')]
           + [(str(llama_directory / 'LICENSE'), 'third_party/llama.cpp')]
-          + ffmpeg_data + metadata + collect_data_files('pypdfium2_raw'),
+          + [(str(license_directory), 'third_party/python')] + ffmpeg_data + metadata + collect_data_files('pypdfium2_raw'),
     hiddenimports=['PIL.PdfImagePlugin', 'nomi.diagnostics'],
     excludes=['PySide6.QtWebEngineCore', 'PySide6.QtWebEngineWidgets', 'tkinter'],
 )

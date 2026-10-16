@@ -6,7 +6,7 @@ Die erste öffentliche Download-Version: Dateien, Bilder und Videos mit lokaler 
 
 - **Windows 10/11, x64: `Nomi-0.11.0-windows-x64.exe`** – einzelne EXE starten. Technische Vorschau; CPU-Ausführung. Keine separate Installation von Python, Ollama, llama.cpp oder FFmpeg erforderlich. Beim Start entpackt sich die Anwendung vorübergehend ins Temp-Verzeichnis.
 - **Mac mit Apple Silicon, macOS 14.8 oder neuer: `Nomi-0.11.0-macos-arm64.zip`** – entpacken, `Nomi.app` nach Programme ziehen und öffnen. OCR über Apple Vision ist enthalten.
-- **`SHA256SUMS.txt`** enthält die Prüfsummen der Downloads; **`LICENSE.txt`** die MIT-Lizenz von Nomi. Lizenzen und passende FFmpeg-Quellen sind zusätzlich in der Anwendung enthalten.
+- **`SHA256SUMS.txt`** enthält die Prüfsummen der Downloads; **`LICENSE.txt`** die MIT-Lizenz von Nomi. Lizenzen und passende FFmpeg-Quellen sind zusätzlich in der Anwendung enthalten. Die optionalen `notices.zip`-Archive enthalten die Drittanbieter-Hinweise und Paketversionen.
 
 KI-Modelle werden getrennt heruntergeladen: etwa 2,5 GB für Qwen, für Bild-/Videoanalyse zusätzlich etwa 1,7 GB. Mistral ist optional. Ein Cloud-Konto ist nicht erforderlich.
 

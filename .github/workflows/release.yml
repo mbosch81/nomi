@@ -35,11 +35,12 @@ jobs:
           VERSION=$(python -c "import importlib.metadata; print(importlib.metadata.version('nomi-renamer'))")
           ditto -c -k --sequesterRsrc --keepParent dist/Nomi.app "dist/Nomi-${VERSION}-macos-arm64.zip"
           cp LICENSE dist/LICENSE.txt
+          ditto -c -k --keepParent work/third-party-licenses "dist/Nomi-${VERSION}-macos-notices.zip"
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
         with:
           name: release-macos
           path: |
-            dist/Nomi-*-macos-arm64.zip
+            dist/Nomi-*-macos-*.zip
             dist/LICENSE.txt
           if-no-files-found: error
   windows:
@@ -97,10 +98,13 @@ jobs:
         run: |
           $version = python -c "import importlib.metadata; print(importlib.metadata.version('nomi-renamer'))"
           Move-Item dist/Nomi.exe "dist/Nomi-$version-windows-x64.exe"
+          Compress-Archive -Path work/third-party-licenses -DestinationPath "dist/Nomi-$version-windows-notices.zip"
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
         with:
           name: release-windows
-          path: dist/Nomi-*-windows-x64.exe
+          path: |
+            dist/Nomi-*-windows-x64.exe
+            dist/Nomi-*-windows-notices.zip
           if-no-files-found: error
   publish:
     if: inputs.publish
