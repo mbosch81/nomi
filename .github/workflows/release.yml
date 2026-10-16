@@ -65,6 +65,7 @@ jobs:
         run: |
           "${{ steps.msys.outputs.msys2-location }}\ucrt64\bin" | Out-File -FilePath $env:GITHUB_PATH -Append
           "${{ steps.msys.outputs.msys2-location }}\usr\bin" | Out-File -FilePath $env:GITHUB_PATH -Append
+          "NOMI_BUILD_BASH=${{ steps.msys.outputs.msys2-location }}\usr\bin\bash.exe" | Out-File -FilePath $env:GITHUB_ENV -Append
           "MSYSTEM=UCRT64" | Out-File -FilePath $env:GITHUB_ENV -Append
           "MSYS2_PATH_TYPE=inherit" | Out-File -FilePath $env:GITHUB_ENV -Append
       - run: python -m pip install -e '.[ocr,build]'

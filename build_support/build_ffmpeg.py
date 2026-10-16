@@ -61,7 +61,11 @@ def build():
         with log.open('w', encoding='utf-8') as output:
             for command in commands:
                 if windows:
-                    command = ['bash', '-lc', shlex.join(command)]
+                    # CreateProcess searches System32 before PATH for bare names, where
+                    # bash.exe may be the unrelated WSL launcher. Resolve MSYS2 explicitly.
+                    bash = env.get('NOMI_BUILD_BASH') or shutil.which('bash')
+                    if not bash:raise ValueError('MSYS2 bash is required for the Windows build')
+                    command = [bash, '-lc', shlex.join(command)]
                 result = subprocess.run(command, cwd=directory, env=env, stdout=subprocess.PIPE,
                                         stderr=subprocess.STDOUT, text=True, encoding='utf-8', errors='replace')
                 output.write(result.stdout)
