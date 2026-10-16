@@ -2,6 +2,8 @@
 
 **Jede Datei verdient einen Namen.**
 
+Versionshistorie (Englisch): [CHANGELOG.md](CHANGELOG.md).
+
 Nomi liest Dokumentinhalte mit lokalem llama.cpp oder einem konfigurierbaren Ollama-Backend und schlägt verständliche Dateinamen vor. Die Desktop-App verwendet Python und PySide6. Dateien werden ausschließlich nach einem expliziten Klick umbenannt.
 
 ## Starten
