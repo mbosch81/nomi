@@ -95,18 +95,24 @@ def secure_move(source, target):
     with directory_guard(source.parent), directory_guard(target.parent), handle(source, delete=True) as h:
         if source.stat().st_dev != target.parent.stat().st_dev:
             raise ValueError(tr('Source and destination must be on the same drive.'))
-        class RenameInfo(C.Structure):
-            _fields_ = [('replace', W.DWORD), ('root', W.HANDLE), ('length', W.DWORD), ('name', W.WCHAR * 1)]
-        name = str(target).encode('utf-16-le')
-        offset = RenameInfo.name.offset
-        buffer = C.create_string_buffer(max(C.sizeof(RenameInfo), offset + len(name)))
-        info = C.cast(buffer, C.POINTER(RenameInfo)).contents
-        info.replace = 0
-        info.root = None
-        info.length = len(name)
-        C.memmove(C.addressof(buffer) + offset, name, len(name))
-        if not api().SetFileInformationByHandle(h, 3, buffer, len(buffer)):
-            raise C.WinError(C.get_last_error())
+        # CreateHardLinkW reserves the target atomically (ERROR_ALREADY_EXISTS).
+        # Delete the opened source link by handle, never a path that could have
+        # been substituted. The source handle denies concurrent writes/deletes.
+        before = source.stat()
+        os.link(source, target, follow_symlinks=False)
+        try:
+            linked = target.stat()
+            if (linked.st_dev, linked.st_ino) != (before.st_dev, before.st_ino):
+                raise ValueError(tr('Source changed before the operation.'))
+            delete = W.BOOL(True)
+            if not api().SetFileInformationByHandle(h, 4, C.byref(delete), C.sizeof(delete)):
+                raise C.WinError(C.get_last_error())
+        except BaseException:
+            linked = target.stat()
+            if (linked.st_dev, linked.st_ino) == (before.st_dev, before.st_ino):
+                target.unlink()
+            raise
+
 
 
 def cleanup_created(directories):
