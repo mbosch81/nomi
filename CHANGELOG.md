@@ -30,6 +30,11 @@ the application version.
 - Platform-specific test fixtures and diagnostics now distinguish unsupported
   Windows features from verified portable rename, undo, preview, and inference.
 
+### Fixed
+
+- Detect rapid same-size rewrites of small documents in session reuse, including
+  Windows filesystems that coalesce modification timestamps.
+
 ### Documentation
 
 - Replaced the developer-focused README with a user-facing product overview,

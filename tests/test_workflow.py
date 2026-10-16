@@ -26,6 +26,15 @@ class SessionTests(unittest.TestCase):
             tiny=SessionResults(byte_limit=3);tiny.put(file_identity(path),settings,{'frames':[(0,'1234')]})
             self.assertFalse(tiny.entries)
 
+    def test_same_stat_small_file_rewrite_invalidates_cache(self):
+        with TemporaryDirectory() as folder:
+            path=Path(folder)/'a.txt';path.write_text('first')
+            snapshot=path.stat();settings=Settings();cache=SessionResults()
+            cache.put(file_identity(path),settings,{'name':'old.txt'})
+            path.write_text('other')
+            with patch.object(Path,'stat',return_value=snapshot):
+                self.assertIsNone(cache.get(path,settings))
+
     def test_cache_force_and_mutating_source(self):
         from nomi.app import Worker
         with TemporaryDirectory() as folder:

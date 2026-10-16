@@ -10,7 +10,14 @@ def file_identity(path):
     path=Path(path)
     if path.is_symlink() or not path.is_file():raise ValueError('Datei fehlt oder ist ein symbolischer Link.')
     stat=path.stat()
-    return (str(path.absolute()),stat.st_dev,stat.st_ino,stat.st_size,stat.st_mtime_ns,stat.st_ctime_ns)
+    # NTFS may coalesce timestamps for rapid same-size rewrites. Small documents
+    # get a bounded content fingerprint; large media retain the cheap stat check
+    # so opening a table row never hashes gigabytes on the UI thread.
+    digest = None
+    if stat.st_size <= 1024 * 1024:
+        with path.open('rb') as handle:
+            digest = hashlib.sha256(handle.read(1024 * 1024 + 1)).hexdigest()
+    return (str(path.absolute()),stat.st_dev,stat.st_ino,stat.st_size,stat.st_mtime_ns,stat.st_ctime_ns,digest)
 
 
 def policy_key(settings):
