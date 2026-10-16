@@ -284,9 +284,21 @@ class Window(QMainWindow):
         layout.addWidget(self.privacy_note)
         self.table = QTableWidget(0, 4)
         self.table.setHorizontalHeaderLabels(['Verwenden', 'Originalname', 'Neuer Name · editierbar', 'Status'])
-        self.table.horizontalHeader().setSectionResizeMode(0, QHeaderView.ResizeMode.ResizeToContents)
-        for col in (1, 2, 3):
-            self.table.horizontalHeader().setSectionResizeMode(col, QHeaderView.ResizeMode.Stretch)
+        header = self.table.horizontalHeader()
+        header.setSectionResizeMode(QHeaderView.ResizeMode.Interactive)
+        header.setMinimumSectionSize(40)
+        widths = self.store.value('table_column_widths', [100, 260, 300, 220])
+        if not isinstance(widths, (list, tuple)) or len(widths) != 4:
+            widths = [100, 260, 300, 220]
+        for column, width in enumerate(widths):
+            try:
+                width = max(40, min(3000, int(width)))
+            except (ValueError, TypeError):
+                width = [100, 260, 300, 220][column]
+            header.resizeSection(column, width)
+        header.setToolTip('Spaltengrenzen ziehen · Doppelklick passt die Breite an den Inhalt an')
+        header.sectionResized.connect(lambda *_: self.store.setValue(
+            'table_column_widths', [header.sectionSize(column) for column in range(4)]))
         self.table.setAlternatingRowColors(True)
         self.table.itemChanged.connect(self.changed)
         self.preview = PreviewPanel()

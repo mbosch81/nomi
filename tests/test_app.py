@@ -168,6 +168,19 @@ class AppTests(TestCase):
             self.assertTrue(model.exists())
             manager.close()
 
+    def test_column_widths_are_interactive_and_restored(self):
+        from PySide6.QtWidgets import QHeaderView
+        header = self.window.table.horizontalHeader()
+        for column in range(4):
+            self.assertEqual(header.sectionResizeMode(column), QHeaderView.ResizeMode.Interactive)
+        header.resizeSection(1, 375)
+        header.resizeSection(2, 410)
+        self.window.close()
+        self.window = Window()
+        self.window.show();self.app.processEvents()
+        self.assertEqual(self.window.table.columnWidth(1), 375)
+        self.assertEqual(self.window.table.columnWidth(2), 410)
+
     def test_import_edit_select_rename_undo(self):
         with patch.object(QFileDialog, 'getOpenFileNames', return_value=([str(self.a), str(self.b)], '')):
             self.click(self.window.files_button)

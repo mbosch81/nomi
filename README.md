@@ -128,7 +128,7 @@ Synthetische Testdaten werden nur in temporären Ordnern erzeugt. Keine produkti
 
 ## Verifizierter Entwicklungsstand (14.10.2026)
 
-- Installation in der vorhandenen `.venv` mit Python 3.14.8, PySide6 6.10.3 und pypdf 6.20.1 abgeschlossen; `pip check` erfolgreich. Alle 75 Tests bestehen; einschließlich echter Vision-OCR, optionaler Tesseract-OCR, OCR im Qt-Worker, Prozessabbruch/-timeout, verifiziertem Modelldownload, lokalem Autoload, Prozesswechsel, Datumsbelegung, Namenssuffixen und manuellen Konflikten. Plattformspezifische OCR-Integrationstests werden ohne die passenden Bibliotheken/Backends übersprungen. Die macOS-CI baut und prüft Vision ohne Tesseract-Installation; die Linux-CI prüft Tesseract.
+- Installation in der vorhandenen `.venv` mit Python 3.14.8, PySide6 6.10.3 und pypdf 6.20.1 abgeschlossen; `pip check` erfolgreich. Alle 76 Tests bestehen; einschließlich echter Vision-OCR, optionaler Tesseract-OCR, OCR im Qt-Worker, Prozessabbruch/-timeout, verifiziertem Modelldownload, lokalem Autoload, Prozesswechsel, Datumsbelegung, Namenssuffixen und manuellen Konflikten. Plattformspezifische OCR-Integrationstests werden ohne die passenden Bibliotheken/Backends übersprungen. Die macOS-CI baut und prüft Vision ohne Tesseract-Installation; die Linux-CI prüft Tesseract.
 - PySide6 ist auf `>=6.9,<6.11` begrenzt: Mit 6.12.0 trat beim Schließen nach nativer Tabellenbearbeitung ein QObject-Absturz auf. Derselbe Ablauf inklusive Schließen wurde mit 6.10.3 erfolgreich wiederholt (Exit-Code 0).
 - Core-, HTTP-Vertrags- und Qt-Tests laufen mit synthetischen Dokumenten. Sie prüfen unter anderem Konflikte, bestehende Zieldateien, doppelte Quellen, Rollback und teilweise fehlgeschlagene Rückabwicklungen, veränderte Dateien, Import, Auswahl, Analyse, Modellladen und Abbruch.
 - Die macOS-Oberfläche wurde gestartet und visuell geprüft; nativer Dateiimport, manuelles Bearbeiten, Umbenennen und Rückgängig wurden am Testdokument bedient und überprüft. Drag-and-drop wird zusätzlich über Qt-Ereignisse getestet.
@@ -141,7 +141,7 @@ Synthetische Testdaten werden nur in temporären Ordnern erzeugt. Keine produkti
 
 MIT — siehe [LICENSE](LICENSE). Die Lizenz gilt für Nomi; Abhängigkeiten und verwendete Modelle haben eigene Lizenzbedingungen.
 
-## macOS-App bauen (Version 0.7.0)
+## macOS-App bauen (Version 0.7.1)
 
 ```sh
 .venv/bin/python -m pip install -e '.[ocr,build]'
@@ -201,3 +201,5 @@ In den Einstellungen Ordner auswählen und Überwachung aktivieren, optional mit
 ### DOCX
 
 DOCX-Dateien sind im Import, in der KI-Analyse und als reine Textvorschau verfügbar. Absätze, Tabellen sowie Kopf-/Fußzeilen werden aus dem Office-ZIP gelesen. Es wird kein Word benötigt. Die Vorschau rekonstruiert kein Seitenlayout und zeigt keine eingebetteten Bilder; Bild-OCR in DOCX, DOC und DOCM werden nicht unterstützt. XML-Entitäten/externe Ressourcen werden nicht aufgelöst; zu große oder beschädigte XML-Bestandteile werden abgewiesen. Originaldateien werden nur beim ausdrücklich ausgelösten Umbenennen umbenannt, nicht inhaltlich bearbeitet.
+
+Die Spaltenbreiten der Dateitabelle lassen sich an den Spaltengrenzen ziehen. Ein Doppelklick auf eine Grenze passt die Breite an den Inhalt an. Gewählte Breiten werden lokal gespeichert und beim nächsten Start wiederhergestellt.
