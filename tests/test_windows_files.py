@@ -23,7 +23,12 @@ class WindowsFilesTests(unittest.TestCase):
         self.assertFalse((self.archive/'2026').exists())
     def test_late_collision_and_junction_are_rejected(self):
         target=self.archive/'foreign.txt';target.write_text('foreign')
-        with self.assertRaises(OSError):secure_move(self.source,target)
+        try:
+            secure_move(self.source,target)
+        except OSError:
+            pass
+        else:
+            self.fail(f'Collision accepted: source_exists={self.source.exists()}, target_content={target.read_text()}')
         self.assertEqual(target.read_text(),'foreign');self.assertTrue(self.source.exists())
         outside=self.root/'outside';outside.mkdir();junction=self.archive/'junction'
         subprocess.run(['cmd','/c','mklink','/J',str(junction),str(outside)],check=True,capture_output=True)

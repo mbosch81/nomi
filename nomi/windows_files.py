@@ -25,7 +25,7 @@ def api():
 @contextmanager
 def handle(path, *, directory=False, delete=False):
     k = api()
-    access = 0x80 | (0x10000 if delete else 0)  # READ_ATTRIBUTES, DELETE
+    access = 0x81 | (0x10000 if delete else 0)  # READ_ATTRIBUTES, DELETE
     h = k.CreateFileW(str(path), access, 3 if directory else 1, None, 3,
                       0x00200000 | (0x02000000 if directory else 0), None)
     if h == W.HANDLE(-1).value:
