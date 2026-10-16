@@ -34,6 +34,11 @@ class Settings:
     llama_model: str = ''
     llama_autoload: bool = True
     llama_projector: str = ''
+    analysis_hint: str = ''
+    auto_models: bool = False
+    text_model: str = 'qwen'
+    image_template: str = ''
+    video_template: str = ''
     image_analysis: str = 'auto'
     video_frames: int = 5
     video_timeout: int = 60
@@ -243,8 +248,8 @@ def metadata_schema() -> dict:
             'required': list(FIELDS), 'additionalProperties': False}
 
 
-def metadata_messages(text: str) -> list[dict]:
-    return [{'role': 'system', 'content': SYSTEM_PROMPT},
+def metadata_messages(text: str, hint: str = '') -> list[dict]:
+    return [{'role': 'system', 'content': SYSTEM_PROMPT + ('\nBenutzerwunsch für den Dateinamen (keine Fakten erfinden): ' + hint[:500] if hint else '')},
             {'role': 'user', 'content': 'DOKUMENTINHALT:\n' + text}]
 
 
@@ -281,7 +286,7 @@ class OllamaBackend:
         result = self.request(settings, '/api/chat', {
             'model': settings.model, 'stream': False, 'format': schema,
             'options': {'temperature': 0, 'num_predict': 400},
-            'messages': metadata_messages(text)
+            'messages': metadata_messages(text, settings.analysis_hint)
         })
         return parse_metadata(result['message']['content'], text)
 
@@ -291,7 +296,7 @@ class OllamaBackend:
         result = self.request(settings, '/api/chat', {
             'model': settings.model, 'stream': False, 'format': metadata_schema(),
             'options': {'temperature': 0, 'num_predict': 600},
-            'messages': [{'role': 'user', 'content': (prompt or VIDEO_PROMPT) + '\nSample positions: ' +
+            'messages': [{'role': 'user', 'content': (prompt or VIDEO_PROMPT) + ('\nFilename preference: '+settings.analysis_hint[:500] if settings.analysis_hint else '') + '\nSample positions: ' +
                           ', '.join(f'{time:.2f}s' for time, _ in frames),
                           'images': [data for _, data in frames]}],
         })

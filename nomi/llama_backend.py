@@ -46,7 +46,7 @@ class LlamaBackend:
     def suggest(self, text: str, settings: Settings) -> dict:
         result = local_request(self.url, self._key, '/v1/chat/completions', {
             'model': 'nomi-local', 'stream': False, 'temperature': 0, 'max_tokens': 600,
-            'messages': metadata_messages(text),
+            'messages': metadata_messages(text, settings.analysis_hint),
             'chat_template_kwargs': {'enable_thinking': False},
             'response_format': {'type': 'json_schema', 'json_schema': {
                 'name': 'document_metadata', 'strict': True, 'schema': metadata_schema()}},
@@ -61,7 +61,7 @@ class LlamaBackend:
         from .video import VIDEO_PROMPT
         if not self.supports_images:
             raise ValueError('Das geladene Modell unterstützt keine Bilder.')
-        content = [{'type': 'text', 'text': prompt or VIDEO_PROMPT}]
+        content = [{'type': 'text', 'text': (prompt or VIDEO_PROMPT) + ('\nFilename preference: '+settings.analysis_hint[:500] if settings.analysis_hint else '')}]
         for timestamp, encoded in frames:
             content.extend([{'type': 'text', 'text': f'Sample {timestamp:.2f}'},
                             {'type': 'image_url', 'image_url': {'url': 'data:image/jpeg;base64,'+encoded}}])
