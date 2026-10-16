@@ -16,6 +16,8 @@ Free and open source · Local AI · No cloud account required
 > organization. These features, together with English/German interface selection,
 > are being added for the next release. [Check download requirements](docs/DOWNLOAD.md).
 
+![Add files, review proposals, confirm changes](docs/images/workflow.svg)
+
 ## Find your files again
 
 - Name invoices, letters and contracts using their date, sender or document type.

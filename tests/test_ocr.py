@@ -195,3 +195,26 @@ class OcrTests(unittest.TestCase):
             backend.return_value.command.side_effect = lambda path, settings: [str(path)]
             self.assertEqual(recognize_image(self.png, Settings(), lambda: False), 'Rechnung')
         self.assertEqual(self.png.read_bytes(), original)
+
+class WindowsOcrCommandTests(unittest.TestCase):
+    def test_encoded_command_quotes_paths_without_execution_policy_changes(self):
+        import base64
+        from nomi.ocr import WindowsBackend
+        with patch('nomi.ocr.sys.platform','win32'), patch.object(Path,'is_file',return_value=True):
+            command=WindowsBackend().command(Path("synthetic's image.png"),Settings(ocr_language='deu+eng'))
+        self.assertNotIn('-ExecutionPolicy',command)
+        script=base64.b64decode(command[-1]).decode('utf-16-le')
+        self.assertIn("synthetic''s image.png",script)
+        self.assertTrue(script.endswith("'de-DE+en-US'"))
+        with patch('nomi.ocr.sys.platform','win32'):
+            self.assertEqual(effective_backend('auto'),'windows')
+            with self.assertRaises(ValueError):WindowsBackend().command(Path('image.png'),Settings(ocr_language="eng;bad"))
+
+    def test_shared_ocr_timeout_kills_child_on_every_platform(self):
+        processes=[]
+        actual=subprocess.Popen
+        def start(*args,**kwargs):
+            p=actual(*args,**kwargs);processes.append(p);return p
+        with patch('nomi.ocr.subprocess.Popen',side_effect=start):
+            with self.assertRaises(TimeoutError):run_ocr([sys.executable,'-c','import time; time.sleep(30)'],.05,lambda:False,'Synthetic')
+        self.assertEqual(len(processes),1);self.assertIsNotNone(processes[0].poll())

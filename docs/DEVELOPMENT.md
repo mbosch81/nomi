@@ -29,7 +29,7 @@ helper. It uses OS language packs and requires no separate OCR program. Tesserac
 remains optional on all supported platforms; Linux needs it for OCR.
 The Windows preview bundles llama.cpp CPU x64 and the same minimal LGPL-only
 FFmpeg build. Folder organization uses pinned directory descriptors on POSIX and native guarded
-handles with non-replacing SetFileInformationByHandle moves on Windows. Windows
+handles, atomic hard-link reservations and source deletion by handle on Windows. Windows
 junctions/reparse points and network shares are rejected.
 No Linux binary package is published.
 
@@ -88,10 +88,12 @@ QT_QPA_PLATFORM=offscreen dist/Nomi.app/Contents/MacOS/Nomi --llama-self-test
 The offline smoke test covers OCR, previews, naming rules, reviewed renaming,
 folder organization, and undo using temporary files and isolated preferences.
 The opt-in llama check uses actual local inference and does not download weights.
-CI uses synthetic model-server tests rather than multi-gigabyte model downloads.
+The regular test workflow uses synthetic model servers. The release workflow
+additionally downloads Qwen and tests actual inference on Windows.
 
 [GitHub Actions](https://github.com/mbosch81/nomi/actions/workflows/tests.yml)
-runs tests on Ubuntu with Python 3.11/3.14 and on macOS with Python 3.14. After
+runs tests on Ubuntu with Python 3.11/3.14, macOS with Python 3.14 and Windows
+with Python 3.14. After
 successful tests, a separate job builds the Mac bundle, exercises the packaged
 runtime and offline test, and uploads the `Nomi-macos` artifact. Workflow behavior
 is defined in [tests.yml](https://github.com/mbosch81/nomi/blob/main/.github/workflows/tests.yml).
@@ -122,7 +124,7 @@ Conflicts never fall back to overwriting. Failed batches attempt rollback;
 
 Folder organization is opt-in and stays on the same filesystem. Relative folder
 schemas are validated, metadata cannot add path levels, and directory traversal
-uses no-follow directory descriptors. Only newly created, still-empty directories
+uses no-follow directory descriptors or guarded Windows handles. Only newly created, still-empty directories
 with matching identities are removed during cleanup. Undo refuses modified files
 and occupied original names. Concurrent external changes and power loss are not
 covered by a durable transaction journal. The history and caches are session-only.
@@ -142,7 +144,9 @@ covered by a durable transaction journal. The history and caches are session-onl
 | `nomi/local_model.py` | Model catalog, paths, verified downloads |
 | `nomi/llama_backend.py` | Local process lifecycle and structured inference |
 | `nomi/image_analysis.py`, `nomi/video.py` | Bounded visual input preparation |
-| `nomi/ocr.py`, `native/VisionOCR.swift` | Cancellable OCR and native helper |
+| `nomi/ocr.py`, `native/VisionOCR.swift`, `nomi/helpers/windows_ocr.ps1` | Cancellable platform OCR |
+| `nomi/windows_files.py` | Native Windows directory guards and safe organization |
+| `nomi/i18n.py`, `nomi/locales/translations.json` | Interface languages and central catalog |
 | `nomi/docx_reader.py`, `nomi/inbox.py` | Bounded DOCX extraction and watched import |
 
 ## Licenses and distribution
@@ -224,3 +228,7 @@ uses the same primitive; cleanup deletes only matching empty created directories
 by handle. Native Windows tests exercise collision, junction, parent replacement,
 rollback, restoration and empty-folder cleanup. Unsupported filesystems fail
 without weakening these checks.
+
+On Windows desktops, `--ocr-self-test` additionally checks actual PDF/image OCR
+with available German/English recognizers. The default Windows CI smoke check
+skips OS OCR because server runners may have no recognition language packs.

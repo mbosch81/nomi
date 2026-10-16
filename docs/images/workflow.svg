@@ -1,6 +1,6 @@
 <svg xmlns="http://www.w3.org/2000/svg" width="1200" height="270" viewBox="0 0 1200 270" role="img" aria-labelledby="title description">
-  <title id="title">Dateien hinzufügen, Vorschläge prüfen, bewusst bestätigen</title>
-  <desc id="description">Eine Illustration mit fiktiven Dateinamen zeigt Nomis Ablauf vom Import bis zur bestätigten Ablage.</desc>
+  <title id="title">Add files, review proposals, confirm changes</title>
+  <desc id="description">An illustration with fictional file names shows the workflow from import to confirmed organization.</desc>
   <rect width="1200" height="270" rx="20" fill="#171c2b"/>
   <g font-family="Arial, sans-serif">
     <rect x="24" y="24" width="356" height="222" rx="14" fill="#222b40"/>
@@ -8,9 +8,9 @@
     <rect x="820" y="24" width="356" height="222" rx="14" fill="#222b40"/>
     <g fill="#9694ff"><circle cx="60" cy="62" r="18"/><circle cx="458" cy="62" r="18"/><circle cx="856" cy="62" r="18"/></g>
     <g font-size="19" font-weight="bold" fill="#171c2b" text-anchor="middle"><text x="60" y="69">1</text><text x="458" y="69">2</text><text x="856" y="69">3</text></g>
-    <g font-size="22" font-weight="bold" fill="#f3f4ff"><text x="91" y="69">Dateien hinzufügen</text><text x="489" y="69">Vorschläge prüfen</text><text x="887" y="69">Bewusst bestätigen</text></g>
-    <g font-size="19" fill="#d4dcf2"><text x="46" y="122">scan_0042.pdf</text><text x="46" y="153">IMG_1083.jpg</text><text x="46" y="184">clip_07.mp4</text><text x="444" y="122">Datum · Absender · Inhalt</text><text x="444" y="153">Namen direkt bearbeiten</text><text x="444" y="184">Dateien einzeln abwählen</text><text x="842" y="122">Neue Namen übernehmen</text><text x="842" y="153">Optional: 2026 / Rechnung</text><text x="842" y="184">Rückgängig in der Sitzung</text></g>
-    <g fill="#aeb9d2" font-size="15"><text x="46" y="221">Einzeln oder als ganzer Ordner</text><text x="444" y="221">Mit Dokument- und Bildvorschau</text><text x="842" y="221">Keine bestehenden Dateien überschreiben</text></g>
+    <g font-size="22" font-weight="bold" fill="#f3f4ff"><text x="91" y="69">Add files</text><text x="489" y="69">Review proposals</text><text x="887" y="69">Confirm changes</text></g>
+    <g font-size="19" fill="#d4dcf2"><text x="46" y="122">scan_0042.pdf</text><text x="46" y="153">IMG_1083.jpg</text><text x="46" y="184">clip_07.mp4</text><text x="444" y="122">Date · Sender · Content</text><text x="444" y="153">Edit proposed names</text><text x="444" y="184">Deselect individual files</text><text x="842" y="122">Apply new names</text><text x="842" y="153">Optional: 2026 / Invoices</text><text x="842" y="184">Undo during this session</text></g>
+    <g fill="#aeb9d2" font-size="15"><text x="46" y="221">Individual files or entire folders</text><text x="444" y="221">With document and image previews</text><text x="842" y="221">Never overwrite existing files</text></g>
     <g stroke="#9694ff" stroke-width="3" fill="none" stroke-linecap="round" stroke-linejoin="round"><path d="M390 135h22m-8-7 8 7-8 7"/><path d="M788 135h22m-8-7 8 7-8 7"/></g>
   </g>
 </svg>
