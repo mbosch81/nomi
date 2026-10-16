@@ -184,7 +184,7 @@ Das Zahnrad oben rechts öffnet die Einstellungen. Backend, Modell, Namensschema
 
 ### PNG- und JPEG-Scans
 
-PNG, JPG und JPEG können über Dateidialog und Drag-and-drop importiert werden. Dafür OCR in den Einstellungen aktivieren. Die Texterkennung arbeitet im Analyse-Worker; Bildinhalte werden nicht an ein Vision-Sprachmodell gesendet. EXIF-Drehung wird berücksichtigt, Transparenz für OCR weiß hinterlegt und große Bilder auf maximal 12 Megapixel verkleinert. Eingaben über 48 Megapixel werden abgewiesen. Die Normalisierung erfolgt ausschließlich an temporären Kopien; Originaldateien und Dateiendungen bleiben erhalten.
+PNG, JPG und JPEG können über Dateidialog und Drag-and-drop importiert werden. Für die reine Texterkennung unter Bilder „Nur Text erkennen (OCR)“ wählen und OCR aktivieren. Alternativ kann seit 0.8.1 das Bild selbst mit einem Vision-Modell ausgewertet werden (siehe Bildinhalte). Die Texterkennung arbeitet im Analyse-Worker. EXIF-Drehung wird berücksichtigt, Transparenz für OCR weiß hinterlegt und große Bilder auf maximal 12 Megapixel verkleinert. Eingaben über 48 Megapixel werden abgewiesen. Die Normalisierung erfolgt ausschließlich an temporären Kopien; Originaldateien und Dateiendungen bleiben erhalten.
 
 ### Lokale Dokumentvorschau
 
@@ -204,12 +204,23 @@ DOCX-Dateien sind im Import, in der KI-Analyse und als reine Textvorschau verfü
 
 Die Spaltenbreiten der Dateitabelle lassen sich an den Spaltengrenzen ziehen. Ein Doppelklick auf eine Grenze passt die Breite an den Inhalt an. Gewählte Breiten werden lokal gespeichert und beim nächsten Start wiederhergestellt.
 
-### Videoanalyse (0.8.0)
+### Videoanalyse (seit 0.8.0)
 
-Die Einstellungen haben eine seitliche Navigation: **Allgemein**, **KI**, **Video**, **Texterkennung** und **Eingangsordner**. Unter **KI** lässt sich **SmolVLM2 2.2B** auswählen und herunterladen (Modell samt Vision-Projektor, zusammen etwa 1,7 GB). Beide Dateien werden geprüft und gemeinsam geladen; bei aktiviertem automatischem Laden auch beim nächsten Start. Qwen und Mistral bleiben für Textdokumente verfügbar. Für eigene Vision-GGUFs kann ein passender Projektor ausgewählt werden. Alternativ unterstützt die Videoanalyse ein geeignetes Ollama-Vision-Modell am konfigurierten Server.
+Die Einstellungen haben eine seitliche Navigation: **Allgemein**, **KI**, **Video**, **Bilder**, **Texterkennung** und **Eingangsordner**. Unter **KI** lässt sich **SmolVLM2 2.2B** auswählen und herunterladen (Modell samt Vision-Projektor, zusammen etwa 1,7 GB). Beide Dateien werden geprüft und gemeinsam geladen; bei aktiviertem automatischem Laden auch beim nächsten Start. Qwen und Mistral bleiben für Textdokumente verfügbar. Für eigene Vision-GGUFs kann ein passender Projektor ausgewählt werden. Alternativ unterstützt die Videoanalyse ein geeignetes Ollama-Vision-Modell am konfigurierten Server.
 
 Videos können wie Dokumente importiert, analysiert, umbenannt und innerhalb der Sitzung zurückbenannt werden. Unter **Video** sind **1 bis 12 Einzelbilder** (Standard 5) und das Zeitlimit der Extraktion einstellbar. Für beschreibende Videonamen sollte das Namensschema `{titel}` enthalten, beispielsweise `{dokumenttyp}_{titel}`. Die Bilder werden über die Videolänge verteilt und auf maximal 512 × 512 Pixel verkleinert. Die Vorschau zeigt ein einzelnes Bild. Es werden ausschließlich sichtbare Inhalte als Stichprobe ausgewertet, kein Ton und keine vollständige Handlung. Vorschläge können ungenau sein und bleiben vor dem ausdrücklichen Umbenennen editierbar. Das lokale Vision-Modell läuft ohne Cloud; bei Ollama gehen die ausgewählten Bilder an dessen konfigurierte Adresse.
 
 Unterstützte Container: MP4, MOV, M4V, MKV, WEBM, AVI und TS; enthaltene Videocodecs: H.264, HEVC, MPEG-4, MJPEG, ProRes, VP8 und VP9. AV1 und Audiospuren werden derzeit nicht ausgewertet. Dateien ohne bestimmbare Dauer, über 24 Stunden oder über 48 Megapixel werden abgewiesen. Ein Abbruch beendet laufende FFmpeg-Prozesse; temporäre Einzelbilder werden entfernt.
 
 **Keine zusätzliche FFmpeg-Installation:** Das macOS-App-Bundle enthält FFmpeg und ffprobe 9.0.2, separat ausgeführt und ohne Netzwerkprotokolle gebaut. Für Entwicklung zuerst `.venv/bin/python build_support/build_ffmpeg.py` ausführen; der App-Build erledigt dies automatisch. Der Build verwendet eine per SHA-256 festgelegte offizielle Quelle und deaktiviert GPL-/Nonfree-Komponenten. FFmpeg steht unter LGPL 2.1 oder neuer; Nomi selbst bleibt MIT-lizenziert. Das Bundle enthält unter `Contents/Resources/third_party/ffmpeg` den vollständigen zugehörigen Quellcode, die Lizenz und die Baukonfiguration. Bauanweisungen stehen in `build_support/build_ffmpeg.py`. Änderungen an den FFmpeg-Werkzeugen erfordern einen erneuten App-Build und eine neue Signatur.
+
+
+### Bildinhalte (0.8.1)
+
+PNG, JPG und JPEG lassen sich auch ohne enthaltenen Text analysieren: Motive, Objekte und Szenen liefern einen Namensvorschlag. Unter **Bilder** gibt es drei Modi:
+
+- **Automatisch** (Standard): Bei lokalem llama.cpp mit geladenem Vision-Projektor wird das Bild direkt ausgewertet; sonst bleibt die bisherige OCR-Texterkennung aktiv.
+- **Bildinhalt mit Vision-Modell**: Explizite Bildauswertung, auch für ein geeignetes Ollama-Vision-Modell. Textmodelle ohne Vision-Projektor werden mit einem Hinweis abgewiesen.
+- **Nur Text erkennen (OCR)**: Vorhandene OCR-Verarbeitung für Dokument-Scans, unabhängig vom geladenen Vision-Modell.
+
+Unter KI SmolVLM2 herunterladen/laden und im Namensschema `{titel}` verwenden, beispielsweise `{dokumenttyp}_{titel}`. Für die Vision-Auswertung ist keine OCR erforderlich. Bilder werden im Arbeitsspeicher auf maximal 1024 × 1024 Pixel vorbereitet, gedreht und bei Transparenz auf Weiß gesetzt. Über 100 MB oder 48 Megapixel große Bilder werden abgewiesen. Originale und Metadaten werden nicht geändert; lediglich der Dateiname ändert sich nach ausdrücklichem Klick. Datumsangaben werden bei reiner Vision-Auswertung konservativ weggelassen. Die Erkennung kann Inhalte oder Details falsch beschreiben; Vorschläge vor dem Umbenennen prüfen. Bei lokalem llama.cpp bleiben Bilder lokal, bei Ollama werden die vorbereiteten Bilder an die konfigurierte Adresse gesendet.

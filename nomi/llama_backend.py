@@ -57,13 +57,13 @@ class LlamaBackend:
         return parse_metadata(choice['message']['content'], text)
 
 
-    def suggest_images(self, frames, settings):
+    def suggest_images(self, frames, settings, *, prompt=None):
         from .video import VIDEO_PROMPT
         if not self.supports_images:
             raise ValueError('Das geladene Modell unterstützt keine Bilder.')
-        content = [{'type': 'text', 'text': VIDEO_PROMPT}]
+        content = [{'type': 'text', 'text': prompt or VIDEO_PROMPT}]
         for timestamp, encoded in frames:
-            content.extend([{'type': 'text', 'text': f'Videozeit {timestamp:.2f} Sekunden'},
+            content.extend([{'type': 'text', 'text': f'Sample {timestamp:.2f}'},
                             {'type': 'image_url', 'image_url': {'url': 'data:image/jpeg;base64,'+encoded}}])
         result = local_request(self.url, self._key, '/v1/chat/completions', {
             'model': 'nomi-local', 'stream': False, 'temperature': 0, 'max_tokens': 600,

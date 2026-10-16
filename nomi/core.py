@@ -34,6 +34,7 @@ class Settings:
     llama_model: str = ''
     llama_autoload: bool = True
     llama_projector: str = ''
+    image_analysis: str = 'auto'
     video_frames: int = 5
     video_timeout: int = 60
 
@@ -284,13 +285,13 @@ class OllamaBackend:
         })
         return parse_metadata(result['message']['content'], text)
 
-    def suggest_images(self, frames, settings):
+    def suggest_images(self, frames, settings, *, prompt=None):
         from .video import VIDEO_PROMPT
         if not settings.model.strip():raise ValueError('Bitte ein Ollama-Vision-Modell auswählen.')
         result = self.request(settings, '/api/chat', {
             'model': settings.model, 'stream': False, 'format': metadata_schema(),
             'options': {'temperature': 0, 'num_predict': 600},
-            'messages': [{'role': 'user', 'content': VIDEO_PROMPT + '\nVideozeiten: ' +
+            'messages': [{'role': 'user', 'content': (prompt or VIDEO_PROMPT) + '\nSample positions: ' +
                           ', '.join(f'{time:.2f}s' for time, _ in frames),
                           'images': [data for _, data in frames]}],
         })

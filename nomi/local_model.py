@@ -37,7 +37,7 @@ def model_catalog() -> tuple[ModelSpec, ...]:
                   '61fd4167fff3ab01ee1cfe0da183fa27a944db48/Mistral-7B-Instruct-v0.3-Q4_K_M.gguf',
                   '1270d22c0fbb3d092fb725d4d96c457b7b687a5f5a715abe1e818da303e562b6',
                   4372812000),
-        ModelSpec('smolvlm', 'SmolVLM2 2.2B · Vision/Video · 1,7 GB',
+        ModelSpec('smolvlm', 'SmolVLM2 2.2B · Bilder/Video · 1,7 GB',
                   'SmolVLM2-2.2B-Instruct-Q4_K_M.gguf',
                   'https://huggingface.co/ggml-org/SmolVLM2-2.2B-Instruct-GGUF/resolve/'
                   '1bc3c9f74ceafd4c8d4411cc9cf188bba3798f91/SmolVLM2-2.2B-Instruct-Q4_K_M.gguf',

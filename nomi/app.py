@@ -10,7 +10,7 @@ from .model_manager import ModelManager
 from .inbox import InboxWatcher
 from .llama_backend import LocalEngine
 from .local_model import default_model_path, download_model_package, model_catalog, model_directory
-from .core import Settings, OllamaBackend, collect, make_name, rename_batch, undo, validate_template, RenameError, extract_document, AnalysisCancelled, available_name, validate_name, VIDEO_FORMATS
+from .core import Settings, OllamaBackend, collect, make_name, rename_batch, undo, validate_template, RenameError, extract_document, AnalysisCancelled, available_name, validate_name, VIDEO_FORMATS, IMAGE_FORMATS
 
 class Worker(QThread):
     result = Signal(int, str, str)
@@ -39,7 +39,14 @@ class Worker(QThread):
                 break
             try:
                 is_video = path.suffix.lower() in VIDEO_FORMATS
-                if is_video:
+                is_visual_image = path.suffix.lower() in IMAGE_FORMATS and (self.settings.image_analysis == 'vision' or
+                    (self.settings.image_analysis == 'auto' and self.settings.engine == 'llama' and getattr(backend, 'supports_images', False)))
+                if is_visual_image:
+                    from .image_analysis import suggest_image
+                    from .core import Extraction
+                    metadata = suggest_image(backend, path, self.settings, self.isInterruptionRequested)
+                    document = Extraction('')
+                elif is_video:
                     from .video import suggest_video
                     from .core import Extraction
                     metadata = suggest_video(backend, path, self.settings, self.isInterruptionRequested)
@@ -63,6 +70,7 @@ class Worker(QThread):
                     status += ' · ' + warning
                 if is_video:
                     status += f' · Video-Stichprobe ({self.settings.video_frames} Frames)'
+                if is_visual_image:status += ' · Bildinhalt (Vision)'
                 if document.used_ocr:
                     status += ' · OCR' + (f' ({document.ocr_backend})' if document.ocr_backend else '')
                 if document.truncated:
@@ -182,6 +190,7 @@ class Window(QMainWindow):
         general_layout = category('Allgemein')
         ai_layout = category('KI')
         video_layout = category('Video')
+        image_layout = category('Bilder')
         ocr_layout = category('Texterkennung')
         inbox_page = category('Eingangsordner')
         self.settings_navigation.currentRowChanged.connect(self.settings_stack.setCurrentIndex)
@@ -326,7 +335,23 @@ class Window(QMainWindow):
         video_hint.setWordWrap(True)
         video_form.addRow(video_hint)
         video_layout.addWidget(video_group)
-        for section in (general_layout, ai_layout, video_layout, ocr_layout, inbox_page):
+        image_group = QGroupBox('Bildanalyse')
+        image_form = QFormLayout(image_group)
+        self.image_analysis = QComboBox()
+        for label, value in [('Automatisch (lokal Vision, sonst OCR)', 'auto'),
+                             ('Bildinhalt mit Vision-Modell', 'vision'), ('Nur Text erkennen (OCR)', 'ocr')]:
+            self.image_analysis.addItem(label, value)
+        self.image_analysis.setCurrentIndex(max(0, self.image_analysis.findData(str(self.store.value('image_analysis', 'auto')))))
+        image_form.addRow(QLabel('Auswertung für PNG und JPEG'))
+        image_form.addRow(self.image_analysis)
+        image_hint = QLabel('Vision erkennt Motive, Objekte und Szenen auch ohne Text. Dafür SmolVLM2 oder ein anderes Vision-Modell laden. '
+                            'Für Ollama die Vision-Auswertung ausdrücklich auswählen und ein bildfähiges Modell verwenden. '
+                            'Für Dokument-Scans bleibt „Nur Text erkennen (OCR)“ verfügbar. '
+                            'Für beschreibende Namen {titel} im Namensschema verwenden. Originalbilder bleiben unverändert.')
+        image_hint.setWordWrap(True)
+        image_form.addRow(image_hint)
+        image_layout.addWidget(image_group)
+        for section in (general_layout, ai_layout, video_layout, image_layout, ocr_layout, inbox_page):
             section.addStretch()
         settings_outer.addWidget(QLabel('Änderungen werden direkt übernommen und beim Schließen gespeichert.'))
         buttons = QDialogButtonBox(QDialogButtonBox.StandardButton.Close)
@@ -396,7 +421,7 @@ class Window(QMainWindow):
         self.undo_button.clicked.connect(self.revert)
         self.all_button.clicked.connect(lambda: self.select_all(True))
         self.none_button.clicked.connect(lambda: self.select_all(False))
-        self.busy_widgets = [self.files_button, self.folder_button, self.recursive, self.clear_button, self.url, self.model, self.connect_button, self.timeout, self.template, self.all_button, self.none_button, self.analyze_button, self.rename_button, self.undo_button, self.ocr_enabled, self.ocr_language, self.ocr_command, self.ocr_backend, self.engine, self.gguf, self.gguf_button, self.download_button, self.local_load_button, self.autoload, self.download_choice, self.inbox_enabled, self.inbox_folder, self.inbox_choose, self.inbox_recursive, self.projector, self.projector_button, self.video_frames, self.video_timeout]
+        self.busy_widgets = [self.files_button, self.folder_button, self.recursive, self.clear_button, self.url, self.model, self.connect_button, self.timeout, self.template, self.all_button, self.none_button, self.analyze_button, self.rename_button, self.undo_button, self.ocr_enabled, self.ocr_language, self.ocr_command, self.ocr_backend, self.engine, self.gguf, self.gguf_button, self.download_button, self.local_load_button, self.autoload, self.download_choice, self.inbox_enabled, self.inbox_folder, self.inbox_choose, self.inbox_recursive, self.projector, self.projector_button, self.video_frames, self.video_timeout, self.image_analysis]
 
         self.engine.currentIndexChanged.connect(self.engine_changed)
         self.gguf.textChanged.connect(self.model_path_changed)
@@ -460,7 +485,7 @@ class Window(QMainWindow):
             'Analyse vollständig auf diesem Mac über llama.cpp. Bis zu 16.000 Zeichen je Datei, PDFs maximal 20 Seiten. '
             'Bei Videos werden Einzelbilder lokal ausgewertet. Beim erstmaligen Modelldownload wird Hugging Face kontaktiert. Umbenennung erst nach deinem Klick.'
             if local else 'Die Analyse sendet bis zu 16.000 Zeichen je Datei an die eingestellte Ollama-Adresse. PDFs: maximal 20 Seiten. '
-            'Video-Einzelbilder werden ebenfalls an das Backend gesendet. Ein vorgeschalteter Router kann Inhalte an Cloud-Anbieter weiterleiten. Umbenennung erst nach deinem Klick.')
+            'Bilder und Video-Einzelbilder werden ebenfalls an das Backend gesendet. Ein vorgeschalteter Router kann Inhalte an Cloud-Anbieter weiterleiten. Umbenennung erst nach deinem Klick.')
         self.refresh_analysis_enabled()
 
     def refresh_analysis_enabled(self):
@@ -550,7 +575,8 @@ class Window(QMainWindow):
                             ocr_command=self.ocr_command.text().strip(), ocr_backend=self.ocr_backend.currentData(),
                             engine=self.engine.currentData(), llama_model=self.gguf.text().strip(),
                             llama_autoload=self.autoload.isChecked(), llama_projector=self.projector.text().strip(),
-                            video_frames=self.video_frames.value(), video_timeout=self.video_timeout.value())
+                            video_frames=self.video_frames.value(), video_timeout=self.video_timeout.value(),
+                            image_analysis=self.image_analysis.currentData())
         for key, value in asdict(settings).items():
             self.store.setValue(key, value)
         return settings

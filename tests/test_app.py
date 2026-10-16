@@ -58,13 +58,18 @@ class AppTests(TestCase):
         self.window.show_settings()
         nav = self.window.settings_navigation
         self.assertEqual([nav.item(i).text() for i in range(nav.count())],
-                         ['Allgemein', 'KI', 'Video', 'Texterkennung', 'Eingangsordner'])
+                         ['Allgemein', 'KI', 'Video', 'Bilder', 'Texterkennung', 'Eingangsordner'])
         nav.setCurrentRow(2)
         self.app.processEvents()
         self.assertTrue(self.window.video_frames.isVisible())
         self.assertFalse(self.window.template.isVisible())
         self.window.video_frames.setValue(9)
         self.assertEqual(self.window.settings().video_frames, 9)
+        nav.setCurrentRow(3)
+        self.app.processEvents()
+        self.assertTrue(self.window.image_analysis.isVisible())
+        self.window.image_analysis.setCurrentIndex(self.window.image_analysis.findData('vision'))
+        self.assertEqual(self.window.settings().image_analysis, 'vision')
         self.window.video_frames.setValue(99)
         self.assertEqual(self.window.settings().video_frames, 12)
 
