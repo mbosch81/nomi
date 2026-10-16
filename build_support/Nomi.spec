@@ -20,7 +20,8 @@ a = Analysis(
     [str(root / 'build_support' / 'launcher.py')],
     pathex=[str(root)],
     binaries=[(str(vision_helper), 'nomi/bin')] + llama_binaries + ffmpeg_binaries,
-    datas=[(str(root / 'LICENSE'), '.'), (str(root / 'README.md'), '.')]
+    datas=[(str(root / 'LICENSE'), '.'), (str(root / 'README.md'), '.'),
+           (str(root / 'CHANGELOG.md'), '.'), (str(root / 'docs'), 'docs')]
           + [(str(llama_directory / 'LICENSE'), 'third_party/llama.cpp')]
           + ffmpeg_data + metadata + collect_data_files('pypdfium2_raw'),
     hiddenimports=['PIL.PdfImagePlugin', 'nomi.diagnostics'],

@@ -1,258 +1,115 @@
 # Nomi
 
-**Jede Datei verdient einen Namen.**
+### Jede Datei verdient einen Namen.
+
+Aus `scan_0042.pdf`, `IMG_1083.jpg` und `clip_07.mp4` werden Namen, mit denen du
+etwas anfangen kannst. Nomi erkennt Dokumentinhalte, Bildmotive und Video-Szenen,
+schlägt passende Dateinamen vor und sortiert Dateien auf Wunsch in deine Ordner.
+
+**Du prüfst die Vorschläge. Du entscheidest, was geändert wird.**
 
-Versionshistorie (Englisch): [CHANGELOG.md](CHANGELOG.md).
+[**macOS-Testversion herunterladen →**](https://github.com/mbosch81/nomi/actions/workflows/tests.yml?query=branch%3Amain)
+· [In wenigen Schritten starten](docs/START.md)
+· [Fragen und Antworten](docs/FAQ.md)
 
-Nomi liest Dokumentinhalte mit lokalem llama.cpp oder einem konfigurierbaren Ollama-Backend und schlägt verständliche Dateinamen vor. Die Desktop-App verwendet Python und PySide6. Dateien werden ausschließlich nach einem expliziten Klick umbenannt.
-
-## Starten
-
-Python 3.11–3.14 installieren, anschließend im Projektordner:
-
-```sh
-python3 -m venv .venv
-source .venv/bin/activate
-python -m pip install -e .
-python -m nomi
-```
-
-Windows (PowerShell):
-
-```powershell
-py -3.14 -m venv .venv
-.\.venv\Scripts\python.exe -m pip install -e .
-.\.venv\Scripts\python.exe -m nomi
-```
-
-## Verwendung
-
-1. **Lokal · llama.cpp** verwenden: Seit 0.9.0 wählt Nomi standardmäßig das Modell passend zum Dateityp und lädt fehlende Modelle bei der ersten Analyse. Unter KI das Textmodell wählen; Bilder/Videos verwenden SmolVLM2. Für manuelle Modellauswahl die automatische Auswahl ausschalten. Im manuellen Modus: in den Einstellungen **Qwen3 4B** oder **Mistral 7B Instruct v0.3** auswählen und **Ausgewähltes Modell herunterladen / laden** anklicken oder eine vorhandene GGUF-Datei auswählen. Danach **Modell laden**; mit **Beim Start laden** lädt Nomi die gewählte Datei künftig automatisch im Hintergrund.
-2. Alternativ **Ollama · Server** wählen, Adresse eintragen und **Modelle laden** anklicken oder einen Modellnamen eingeben. Unterstützt werden `/api/tags` und `/api/chat` mit strukturierten JSON-Ausgaben. Der Server-Port muss bekannt sein; Nomi errät ihn nicht.
-3. Dateien/Ordner hineinziehen oder über den Dateidialog auswählen. Unterordner sind optional. Symbolische Links werden nicht importiert.
-4. Ausgewählte Dateien analysieren. Namensvorschläge prüfen, bearbeiten und unerwünschte Dateien per Checkbox abwählen.
-5. **Auswahl umbenennen** öffnet eine Übersicht. Erst **Jetzt umbenennen** führt die geprüfte Auswahl aus. Umbenennungsaktionen können während derselben Sitzung schrittweise rückgängig gemacht werden.
-
-## Lokale KI mit llama.cpp
-
-Die macOS-App enthält eine auf Release **b11622** fixierte llama.cpp-Runtime. Es wird kein separater Ollama- oder llama.cpp-Dienst benötigt. Nomi startet einen eigenen `llama-server` auf `127.0.0.1` mit freiem Port und zufälligem Sitzungsschlüssel; Schlüssel werden weder gespeichert noch protokolliert. Lokale HTTP-Anfragen umgehen System-Proxys. Es gibt keinen automatischen Wechsel zu Ollama oder einem Cloud-Anbieter. Beim normalen Schließen oder Wechsel zu Ollama beendet Nomi nur den selbst gestarteten Prozess.
-
-Als Standard wird das offizielle **Qwen3-4B-Q4_K_M.gguf** angeboten (2.497.280.256 Bytes, etwa 2,5 GB, Apache-2.0). Downloadquelle und Revision sind festgelegt; beim Download werden Größe und SHA-256 geprüft. Abbruch/Fehler entfernt die temporäre Datei; bestehende abweichende Modelle werden nicht überschrieben. Modelle gehören weder in Git noch ins App-Bundle. Speicherort auf macOS: `~/Library/Application Support/Nomi/models/`, auf Linux im XDG-Datenverzeichnis, unter Windows in LocalAppData.
-
-Zusätzlich ist **Mistral 7B Instruct v0.3 Q4_K_M** auswählbar (4.372.812.000 Bytes, etwa 4,4 GB, Apache-2.0). Die GGUF-Quantisierung stammt von [bartowski auf Hugging Face](https://huggingface.co/bartowski/Mistral-7B-Instruct-v0.3-GGUF/tree/61fd4167fff3ab01ee1cfe0da183fa27a944db48). Auch hier sind Revision, Größe und SHA-256 festgelegt. Der Modellkatalog setzt den passenden Dateipfad; nach Download und Laden wird diese Datei beim nächsten Start verwendet. Ein vorhandenes geprüftes Modell wird wiederverwendet. Qwen3 bleibt der Standard; Mistral benötigt mehr Arbeitsspeicher.
-
-Bei deinem ersten Start ohne Modell ist ein einmaliger Download über die Schaltfläche nötig. Danach lädt **Beim Start laden** die vorhandene, konfigurierte GGUF-Datei ohne erneuten Download. Es wird ein Modell gleichzeitig geladen. Ladezustand, Download-Prozent und Fehler erscheinen in der Statuszeile; Analyse ist erst nach Betriebsbereitschaft möglich. Abbruch während des Startens beendet den Kindprozess. Ein aktiver Download reagiert spätestens nach dem Netzwerk-Timeout (30 s). Abgebrochene Downloads werden derzeit nicht fortgesetzt.
-
-Die Engine nutzt bis zu 8.192 Kontexttokens, einen Analyseplatz und nach Möglichkeit GPU-Offloading (auf macOS Metal). Thinking ist für die strukturierte Metadatenextraktion deaktiviert. Der Arbeitsspeicherbedarf liegt über der reinen GGUF-Dateigröße; andere gewählte Modelle können deutlich mehr RAM benötigen. Ein zu langer Token-Kontext führt zu einem Fehler, nicht zu einem Cloud-Fallback. Die Namensqualität bleibt modellabhängig und muss geprüft werden.
-
-Für Entwickler aus dem Quellcode (macOS) wird die Runtime einmal vorbereitet:
-
-```sh
-.venv/bin/python build_support/fetch_llama.py
-```
-
-Der App-Build führt diesen Schritt automatisch aus. Die offiziellen ARM64-/x64-Archive werden mit festgelegten SHA-256-Prüfsummen geprüft; die Runtime-Lizenz wird im App-Bundle mitgeliefert. Auf anderen Plattformen kann eine vorhandene `llama-server`-Installation aus dem Suchpfad verwendet werden; entsprechende Pakete sind noch nicht gebaut oder praktisch geprüft.
-
-Quellen: [llama.cpp b11622](https://github.com/ggml-org/llama.cpp/releases/tag/b11622), [Qwen3-4B-GGUF](https://huggingface.co/Qwen/Qwen3-4B-GGUF/tree/bc640142c66e1fdd12af0bd68f40445458f3869b).
-
-Schema-Felder: `{datum}`, `{absender}`, `{dokumenttyp}`, `{titel}`, `{empfaenger}`, `{kennung}`.
-
-- Standard: `{datum}_{absender}_{dokumenttyp}`
-- Mit Rechnungsnummer/anderem belegtem Kennzeichen: `{datum}_{absender}_{dokumenttyp}_{kennung}`
-- Mit Empfänger/Zweck: `{datum}_{absender}_{dokumenttyp}_{empfaenger}_{titel}`
-
-Unbekannte Angaben und erkannte Platzhalter bleiben leer. Die Originalendung bleibt erhalten. Deutsche Datumsangaben werden in `YYYY-MM-DD` umgewandelt. Ein vorgeschlagenes Datum muss als vollständiges Datum im übermittelten Textausschnitt belegt sein; erkennbare Vertragsbeginn-/Zeitraumdaten werden weggelassen und im Status angezeigt. Diese konservative Prüfung kann auch ein korrektes Datum weglassen und ersetzt keine fachliche Kontrolle.
-
-Bei bereits belegten oder im Analyseauftrag mehrfach vorgeschlagenen Namen ergänzt Nomi sichtbare Nummern wie `_2`. Vorschläge werden nur innerhalb desselben Analyseauftrags reserviert; manuelle Änderungen und Auswahländerungen werden zusätzlich auf Konflikte geprüft. Beim tatsächlichen Umbenennen erfolgt nochmals die verbindliche Konfliktprüfung. Nummern unterscheiden Dateien, bestätigen aber nicht, ob Inhalte identisch sind.
-
-## OCR: Apple Vision auf macOS
-
-OCR bleibt standardmäßig aus. Aktiviere **OCR für gescannte PDF-Seiten** für Bild-PDFs oder gemischte Dokumente. Unter **Automatisch** verwendet Nomi auf macOS **Apple Vision**, auf anderen Plattformen Tesseract. Apple Vision benötigt beim Nutzer keine separate Installation: Der native Helfer ist im App-Bundle enthalten und verwendet die macOS-Systemframeworks. Bei einem Vision-Fehler wird nicht heimlich auf Tesseract gewechselt.
-
-Die OCR-Sprachen sind standardmäßig `deu+eng` (Deutsch und Englisch); für Vision sind auch `de-DE+en-US` möglich. Nicht unterstützte Sprachkombinationen führen zu einer verständlichen Fehlermeldung. Tesseract bleibt im Auswahlfeld ausdrücklich verfügbar; nur dann wird das Feld für seinen Programmpfad angezeigt.
-
-Nur Seiten mit weniger als 30 extrahierten Buchstaben/Ziffern werden zusätzlich erkannt. Die Original-PDF bleibt unverändert; es wird keine durchsuchbare PDF erzeugt. OCR läuft lokal. Der erkannte Text wird anschließend wie normaler PDF-Text an das konfigurierte Ollama-Backend gesendet.
-
-### Entwicklung aus dem Quellcode
-
-```sh
-.venv/bin/python -m pip install -e '.[ocr]'
-# Nur für macOS-Entwickler: Helfer einmal mit Apples Swift-Compiler bauen.
-.venv/bin/python build_support/build_vision.py
-```
-
-Der Swift-Compiler wird ausschließlich beim Entwickeln/Bauen benötigt, nicht auf dem Mac eines App-Nutzers. Der macOS-App-Build kompiliert den Helfer automatisch aus `native/VisionOCR.swift`. Der generierte Helfer unter `nomi/bin/` wird nicht in Git eingecheckt. Die Swift-Build-Werkzeuge müssen auf dem Build-Rechner vorhanden sein.
-
-### Optionales Tesseract für andere Plattformen oder einen Vergleich
-
-Unter macOS: `brew install tesseract tesseract-lang`. Unter Debian/Ubuntu: `sudo apt install tesseract-ocr tesseract-ocr-deu tesseract-ocr-eng`. Unter Windows Tesseract separat installieren und gegebenenfalls den Programmpfad eintragen. Die Python-Bibliotheken bleiben in allen Fällen über `.[ocr]` installierbar. Windows ist noch nicht praktisch geprüft.
-
-### Grenzen und Abbruch
-
-Seiten werden einzeln mit bis zu 300 dpi und maximal 12 Megapixeln gerendert. Temporäre Bilder werden nach jeder Seite auch bei Abbruch/Fehler entfernt. Beide OCR-Backends laufen in eigenen Prozessen; das eingestellte Timeout gilt je OCR-Seite sowie für die HTTP-Anfrage, nicht für das gesamte Dokument. Abbruch beendet einen laufenden OCR-Prozess; während des Renderns wirkt er nach der aktuellen Renderoperation.
-
-Vision verwendet die genaue Erkennung mit Sprachkorrektur, OCR-Revision 3 und CPU-Ausführung. Das vermeidet Initialisierungsverzögerungen der GPU/ANE bei kurzlebigen Helferprozessen und ist keine pauschale Aussage zur besten Geschwindigkeit jeder Hardware. Die Erkennungsqualität hängt weiterhin von Scan, Schrift und Sprache ab. Seiten mit vorhandenem, aber fehlerhaftem Text können als OCR-Kandidaten übersehen werden.
-
-Technische Referenzen: [Apple Vision](https://developer.apple.com/documentation/vision/recognizing-text-in-images), [Tesseract-CLI](https://tesseract-ocr.github.io/tessdoc/Command-Line-Usage.html), [PDFium-Python-API](https://pypdfium2.readthedocs.io/en/stable/python_api.html).
-
-## Grenzen der Version 0.7
-
-- Text-PDFs, optional gescannte PDF-Seiten via Apple Vision oder Tesseract, UTF-8/Windows-1252-Texte, Markdown und CSV; zusätzlich PNG- und JPEG-Scans bei aktivierter OCR; DOCX-Text einschließlich Tabellen, Kopf- und Fußzeilen; keine allgemeine Bildanalyse.
-- Pro Dokument maximal 16.000 Zeichen und bei PDFs die ersten 20 Seiten. Angaben außerhalb dieses Ausschnitts werden nicht berücksichtigt. Begrenzte PDF-/Textauszüge werden in der Tabelle kenntlich gemacht.
-- Jede Datei wird einzeln analysiert; die UI bleibt dabei bedienbar. Abbruch wirkt nach der laufenden Anfrage, deren Timeout konfigurierbar ist.
-- Die KI kann sich irren. Vorschläge müssen geprüft werden. Datumsprüfung und Prompt reduzieren Fehler; Absender, Dokumenttyp, Titel und Kennzeichen können weiterhin falsch zugeordnet werden. Sammelakten und mehrere Datumsangaben bleiben besonders prüfpflichtig.
-- Ausgewählte Umbenennungen werden vorher auf Konflikte geprüft. Bestehende Dateien werden nicht überschrieben. Für die Umbenennung wird ein Hardlink mit anschließendem Entfernen des alten Verzeichniseintrags verwendet. Dateisysteme ohne Hardlink-Unterstützung (z. B. manche USB-/Netzlaufwerke) werden mit einem Fehler abgewiesen.
-- Eine Fehlersituation führt zu einem bestmöglichen Rollback. Bei unvollständiger Rückabwicklung werden die verbleibenden Umbenennungen gemeldet und in der Sitzungshistorie zur Wiederherstellung behalten. Gleichzeitige externe Dateiänderungen und Stromausfälle sind nicht transaktional abgesichert.
-- Rückgängig verweigert die Aktion bei veränderten Dateien oder neu belegten Originalnamen. Historie ist derzeit nur im Arbeitsspeicher vorhanden.
-- Noch keine Developer-ID-signierten Installer oder automatischen Updates. macOS wurde in der Entwicklungsumgebung getestet; Windows erfordert noch einen eigenen Plattformtest.
-
-## Datenschutz
-
-Im lokalen llama.cpp-Modus wird Dokumenttext ausschließlich über die interne Loopback-Verbindung verarbeitet. Beim Modelldownload wird Hugging Face kontaktiert; Dokumentinhalte werden nicht mitgesendet. Im Ollama-Modus wird Dokumenttext an die eingestellte Backend-Adresse gesendet. Ein Ollama-kompatibler Router kann Cloud-Fallback verwenden. Nomi kann dieses Routing nicht erkennen. Es gibt keinen automatischen Cloud-Fallback in Nomi selbst. Einstellungen werden lokal über Qt gespeichert; Dokumentinhalte werden nicht protokolliert.
-
-## Architektur
-
-- `nomi/core.py`: Extraktion, Backend-Protokoll, Ollama-Anbindung, Namensvalidierung und Umbenennung.
-- `nomi/app.py`: PySide6-Oberfläche, sequenzieller Analyse-Worker und asynchrones Modell-Laden.
-- `nomi/llama_backend.py`: eigener llama.cpp-Prozess, strukturierte Inferenz und Lebenszyklus.
-- `nomi/local_model.py`: Modellpfade, Modellkatalog und verifizierte atomare GGUF-Downloads.
-- `nomi/ocr.py`: optionale PDFium-Rasterung, OCR-Backend-Schnittstelle und abbrechbare Vision-/Tesseract-Prozesse.
-- `native/VisionOCR.swift`: lokaler Apple-Vision-Helfer, beim Build in die App eingebunden.
-- Ollama und llama.cpp verwenden denselben Metadaten-Prompt, dasselbe JSON-Schema und dieselbe konservative Datumsprüfung.
-
-## Tests
-
-```sh
-python -m unittest discover -s tests -v
-```
-
-Synthetische Testdaten werden nur in temporären Ordnern erzeugt. Keine produktiven Dokumente sind Bestandteil des Projekts.
-
-## Verifizierter Entwicklungsstand (14.10.2026)
-
-- Installation in der vorhandenen `.venv` mit Python 3.14.8, PySide6 6.10.3 und pypdf 6.20.1 abgeschlossen; `pip check` erfolgreich. Alle 76 Tests bestehen; einschließlich echter Vision-OCR, optionaler Tesseract-OCR, OCR im Qt-Worker, Prozessabbruch/-timeout, verifiziertem Modelldownload, lokalem Autoload, Prozesswechsel, Datumsbelegung, Namenssuffixen und manuellen Konflikten. Plattformspezifische OCR-Integrationstests werden ohne die passenden Bibliotheken/Backends übersprungen. Die macOS-CI baut und prüft Vision ohne Tesseract-Installation; die Linux-CI prüft Tesseract.
-- PySide6 ist auf `>=6.9,<6.11` begrenzt: Mit 6.12.0 trat beim Schließen nach nativer Tabellenbearbeitung ein QObject-Absturz auf. Derselbe Ablauf inklusive Schließen wurde mit 6.10.3 erfolgreich wiederholt (Exit-Code 0).
-- Core-, HTTP-Vertrags- und Qt-Tests laufen mit synthetischen Dokumenten. Sie prüfen unter anderem Konflikte, bestehende Zieldateien, doppelte Quellen, Rollback und teilweise fehlgeschlagene Rückabwicklungen, veränderte Dateien, Import, Auswahl, Analyse, Modellladen und Abbruch.
-- Die macOS-Oberfläche wurde gestartet und visuell geprüft; nativer Dateiimport, manuelles Bearbeiten, Umbenennen und Rückgängig wurden am Testdokument bedient und überprüft. Drag-and-drop wird zusätzlich über Qt-Ereignisse getestet.
-- Die Ollama-API wurde zusätzlich mit einem echten LAN-Ollama und `mistral:latest` geprüft: strukturierte Antworten und vollständige Extraktion/Generierung/Umbenennung/Rückgängig für synthetische Text-PDFs, TXT, Markdown und CSV erfolgreich. Erster Aufruf etwa 13 s, Folgeaufrufe etwa 0,5–0,7 s (kleiner Testdatensatz, keine allgemeine Leistungsgarantie).
-- Der echte Qt-Worker wurde gegen dieses Backend geprüft: Modellliste laden, Abbruch nach laufender Anfrage bei weiterhin reagierender Oberfläche, ungültiges Modell und nicht erreichbare Adresse. Ein HTTP-Timeout wurde zusätzlich mit künstlich verkürzter Frist ausgelöst.
-- Nachprüfung mit 28 privaten lokalen PDFs: 28 formal gültige Vorschläge, davon vier Dokumente mit OCR; keine Originale verändert (SHA-256-Prüfung). Sieben Datumsvorschläge wurden konservativ weggelassen. Private Dokumente, Inhalte und Auswertungen sind nicht Bestandteil dieses Repositorys.
-- macOS: Apple Vision und Tesseract 5.5.3 mit Deutsch/Englisch, PDFium und Pillow praktisch geprüft. Vision und Tesseract wurden zusätzlich auf denselben vier privaten PDFs verglichen; Originale unverändert. Textübereinstimmung ersetzt dabei keine Qualitätsbewertung anhand manueller Referenztexte. Andere Modelle, schwierige Scans und Windows benötigen weitere Tests. Laufende HTTP-Anfragen enden bei Abbruch weiterhin erst mit Antwort oder Timeout.
-
-## Lizenz
-
-MIT — siehe [LICENSE](LICENSE). Die Lizenz gilt für Nomi; Abhängigkeiten und verwendete Modelle haben eigene Lizenzbedingungen.
-
-## macOS-App bauen (Version 0.7.1)
-
-```sh
-.venv/bin/python -m pip install -e '.[ocr,build]'
-.venv/bin/python -m PyInstaller --noconfirm build_support/Nomi.spec
-```
-
-Die Anwendung liegt anschließend unter `dist/Nomi.app` und lässt sich per Doppelklick starten. Python, Qt, die OCR-Python-Bibliotheken, der native Vision-Helfer und llama.cpp sind enthalten. Modelldateien werden separat in den Anwendungsdaten gespeichert. Auf macOS wird keine Tesseract-Installation mehr benötigt. Wer Tesseract ausdrücklich auswählt, installiert es und seine Sprachdaten separat; dabei werden auch die üblichen Homebrew-Pfade durchsucht. Für einen Ollama-Server im LAN benötigt Nomi die macOS-Berechtigung für das lokale Netzwerk. Die App erklärt diesen Zugriff im Systemdialog; gegebenenfalls unter Systemeinstellungen → Datenschutz & Sicherheit → Lokales Netzwerk für Nomi erlauben. [Apple-Dokumentation](https://developer.apple.com/documentation/technotes/tn3179-understanding-local-network-privacy).
-
-Ein lokaler Build übernimmt Prozessorarchitektur und macOS-Version des Build-Rechners als konservative Mindestanforderung. Der Entwicklungsbuild wurde auf Apple Silicon/macOS 27 gebaut und ist kein getesteter universeller Intel-/ARM-Build. Für ältere Systeme auf einem passenden Build-Rechner bauen. Die GitHub-Variante wird auf dem im Workflow angegebenen macOS-Runner erstellt.
-
-Das Bundle ist lokal ad hoc signiert, jedoch nicht mit einer Apple Developer ID signiert oder notarisiert. Es ist derzeit ein Entwicklungsbuild, kein fertiger öffentlicher Installer. Ein automatischer Upload zu GitHub Releases findet nicht statt.
-
-Offline-Selbsttest für das gebaute Bundle (nur temporäre synthetische Dateien, keine Netzwerkaufrufe oder Änderungen an persönlichen Einstellungen):
-
-```sh
-dist/Nomi.app/Contents/MacOS/Nomi --self-test
-```
-
-Der Selbsttest prüft das automatische OCR-Backend, Qt, Umbenennen und Rückgängig. Auf macOS verwendet er den mitgelieferten Vision-Helfer und benötigt kein Tesseract; auf Linux wird Tesseract mit englischen Sprachdaten benötigt. Er steht auch unter `python -m nomi --self-test` zur Verfügung.
-
-## Automatische Prüfungen
-
-GitHub Actions prüft Pull Requests und Pushes mit Python 3.11/3.14 auf Ubuntu sowie Python 3.14 auf macOS. OCR und der Offline-Selbsttest gehören dazu. Nach erfolgreichen Tests wird ein macOS-Bundle einschließlich llama.cpp gebaut, mit reduziertem Finder-ähnlichem Suchpfad auf OCR und native Runtime geprüft und als ZIP-Artefakt am Workflow-Lauf gespeichert. Die Action-Versionen sind auf Commit-Hashes fixiert. Workflow und Build sind unter `.github/workflows/tests.yml` bzw. `build_support/Nomi.spec` beschrieben.
-
-### Zusätzliche llama.cpp-Prüfungen
-
-```sh
-# Laufzeit und abhängige Bibliotheken prüfen, ohne Modell/Netzwerk:
-dist/Nomi.app/Contents/MacOS/Nomi --runtime-check
-# Echte lokale Inferenz: Standardmodell muss bereits vorhanden sein.
-# Nur synthetischer Scan in temporärem Ordner, keine Änderungen an persönlichen Einstellungen.
-dist/Nomi.app/Contents/MacOS/Nomi --llama-self-test
-```
-
-Lokal mit dem echten Standardmodell und fertigem Bundle geprüft: automatisches Laden, Apple-Vision-OCR, strukturierte lokale Generierung, Umbenennen, Rückgängig und Beenden des eigenen Servers. Gemessene Beispielzeiten: Modellstart 1,2–6,8 s je nach Cachezustand, OCR plus Generierung etwa 2,7–27,2 s für den kurzen synthetischen Scan. Insbesondere die Initialisierung nativer OCR-Frameworks kann beim ersten Aufruf länger dauern; die Oberfläche bleibt dabei bedienbar. Das ist keine allgemeine Leistungsgarantie. Die CI verwendet für Modell-Lebenszyklus und API-Tests einen synthetischen Kindprozess und lädt keine mehrgigabytegroßen Gewichte.
-
-### Einstellungen
-
-Das Zahnrad oben rechts öffnet die Einstellungen. Backend, Modell, Namensschema, Zeitlimit und OCR werden auch über **Einstellungen → Einstellungen …** konfiguriert. Auf macOS liegt der Eintrag im Nomi-App-Menü und ist mit **⌘,** erreichbar. Änderungen gelten direkt und werden beim Schließen des Einstellungsfensters gespeichert. Während laufender Analyse oder Modellinitialisierung sind die betroffenen Felder gesperrt. Im Hauptfenster bleiben Import, Dateiliste, Analyse und Umbenennung.
-
-### PNG- und JPEG-Scans
-
-PNG, JPG und JPEG können über Dateidialog und Drag-and-drop importiert werden. Für die reine Texterkennung unter Bilder „Nur Text erkennen (OCR)“ wählen und OCR aktivieren. Alternativ kann seit 0.8.1 das Bild selbst mit einem Vision-Modell ausgewertet werden (siehe Bildinhalte). Die Texterkennung arbeitet im Analyse-Worker. EXIF-Drehung wird berücksichtigt, Transparenz für OCR weiß hinterlegt und große Bilder auf maximal 12 Megapixel verkleinert. Eingaben über 48 Megapixel werden abgewiesen. Die Normalisierung erfolgt ausschließlich an temporären Kopien; Originaldateien und Dateiendungen bleiben erhalten.
-
-### Lokale Dokumentvorschau
-
-Die ausgewählte Datei erscheint rechts neben der Tabelle. Die Bereiche sind über den Trenner in der Breite verstellbar. PDFs lassen sich seitenweise durchblättern, Bilder und PDF-Seiten einpassen oder mit 100/150 Prozent betrachten. TXT, Markdown und CSV werden als reiner Text angezeigt (maximal 256 KiB). PDF-Vorschauen sind auf Dateien bis 200 MB begrenzt, Bildvorschauen auf 48 Megapixel. Die Vorschau lädt im Hintergrund und benötigt weder OCR noch einen KI-Dienst. Veraltete Ergebnisse nach einem Dateiwechsel werden verworfen. Passwortgeschützte oder beschädigte Dateien zeigen einen Hinweis. Das Namensfeld über der Vorschau ist mit der Tabelle synchronisiert. Umbenennen bleibt eine separate Aktion. Die Vorschau öffnet Quellen nur lesend und speichert keine Dokumentkopien.
-
-### Installierte Modelle verwalten
-
-Im Zahnrad unter „Installierte Modelle verwalten …“ werden GGUF-Dateien im Nomi-Modellordner und die konfigurierte externe Datei mit Speicherbedarf und Ladezustand angezeigt. Modelle lassen sich auswählen, laden und entladen. Entfernen verschiebt nach Bestätigung ausschließlich Dateien aus dem Nomi-Modellordner in den Betriebssystem-Papierkorb. Geladene Modelle müssen zuvor entladen werden. Externe Modelldateien werden nicht entfernt; es gibt keinen Fallback auf endgültiges Löschen.
-
-### Überwachter Eingangsordner
-
-In den Einstellungen Ordner auswählen und Überwachung aktivieren, optional mit Unterordnern. Die Überwachung läuft nur bei geöffneter App. Im Hintergrund wird etwa alle zwei Sekunden geprüft; eine Datei wird erst nach zwei aufeinanderfolgenden identischen Größen-/Änderungszeitprüfungen importiert. Das reduziert verfrühte Importe während Kopiervorgängen, garantiert aber keinen abgeschlossenen Schreibvorgang. Bereits vorhandene Dateien werden ebenso aufgenommen. Während Analyse oder Modell-Laden pausiert der Import. Keine automatische Analyse, kein automatisches Umbenennen. Symbolische Links, versteckte Dateien und Word-Sperrdateien werden ignoriert. Ein Scan ist auf 5.000 unterstützte Dateien begrenzt; eigene Umbenennungen bereits erkannter Dateien werden anhand der Dateiidentität nicht erneut importiert. Die Erkennungsliste wird nicht dauerhaft gespeichert; nach einem App-Neustart werden vorhandene Dateien erneut aufgenommen. Die Konfiguration bleibt lokal gespeichert.
-
-### DOCX
-
-DOCX-Dateien sind im Import, in der KI-Analyse und als reine Textvorschau verfügbar. Absätze, Tabellen sowie Kopf-/Fußzeilen werden aus dem Office-ZIP gelesen. Es wird kein Word benötigt. Die Vorschau rekonstruiert kein Seitenlayout und zeigt keine eingebetteten Bilder; Bild-OCR in DOCX, DOC und DOCM werden nicht unterstützt. XML-Entitäten/externe Ressourcen werden nicht aufgelöst; zu große oder beschädigte XML-Bestandteile werden abgewiesen. Originaldateien werden nur beim ausdrücklich ausgelösten Umbenennen umbenannt, nicht inhaltlich bearbeitet.
-
-Die Spaltenbreiten der Dateitabelle lassen sich an den Spaltengrenzen ziehen. Ein Doppelklick auf eine Grenze passt die Breite an den Inhalt an. Gewählte Breiten werden lokal gespeichert und beim nächsten Start wiederhergestellt.
-
-### Videoanalyse (seit 0.8.0)
-
-Die Einstellungen haben eine seitliche Navigation: **Allgemein**, **KI**, **Video**, **Bilder**, **Texterkennung** und **Eingangsordner**. Unter **KI** lässt sich **SmolVLM2 2.2B** auswählen und herunterladen (Modell samt Vision-Projektor, zusammen etwa 1,7 GB). Beide Dateien werden geprüft und gemeinsam geladen; bei aktiviertem automatischem Laden auch beim nächsten Start. Qwen und Mistral bleiben für Textdokumente verfügbar. Für eigene Vision-GGUFs kann ein passender Projektor ausgewählt werden. Alternativ unterstützt die Videoanalyse ein geeignetes Ollama-Vision-Modell am konfigurierten Server.
-
-Videos können wie Dokumente importiert, analysiert, umbenannt und innerhalb der Sitzung zurückbenannt werden. Unter **Video** sind **1 bis 12 Einzelbilder** (Standard 5) und das Zeitlimit der Extraktion einstellbar. Für beschreibende Videonamen sollte das Namensschema `{titel}` enthalten, beispielsweise `{dokumenttyp}_{titel}`. Die Bilder werden über die Videolänge verteilt und auf maximal 512 × 512 Pixel verkleinert. Die Vorschau zeigt ein einzelnes Bild. Es werden ausschließlich sichtbare Inhalte als Stichprobe ausgewertet, kein Ton und keine vollständige Handlung. Vorschläge können ungenau sein und bleiben vor dem ausdrücklichen Umbenennen editierbar. Das lokale Vision-Modell läuft ohne Cloud; bei Ollama gehen die ausgewählten Bilder an dessen konfigurierte Adresse.
-
-Unterstützte Container: MP4, MOV, M4V, MKV, WEBM, AVI und TS; enthaltene Videocodecs: H.264, HEVC, MPEG-4, MJPEG, ProRes, VP8 und VP9. AV1 und Audiospuren werden derzeit nicht ausgewertet. Dateien ohne bestimmbare Dauer, über 24 Stunden oder über 48 Megapixel werden abgewiesen. Ein Abbruch beendet laufende FFmpeg-Prozesse; temporäre Einzelbilder werden entfernt.
-
-**Keine zusätzliche FFmpeg-Installation:** Das macOS-App-Bundle enthält FFmpeg und ffprobe 9.0.2, separat ausgeführt und ohne Netzwerkprotokolle gebaut. Für Entwicklung zuerst `.venv/bin/python build_support/build_ffmpeg.py` ausführen; der App-Build erledigt dies automatisch. Der Build verwendet eine per SHA-256 festgelegte offizielle Quelle und deaktiviert GPL-/Nonfree-Komponenten. FFmpeg steht unter LGPL 2.1 oder neuer; Nomi selbst bleibt MIT-lizenziert. Das Bundle enthält unter `Contents/Resources/third_party/ffmpeg` den vollständigen zugehörigen Quellcode, die Lizenz und die Baukonfiguration. Bauanweisungen stehen in `build_support/build_ffmpeg.py`. Änderungen an den FFmpeg-Werkzeugen erfordern einen erneuten App-Build und eine neue Signatur.
-
-
-### Bildinhalte (0.8.1)
-
-PNG, JPG und JPEG lassen sich auch ohne enthaltenen Text analysieren: Motive, Objekte und Szenen liefern einen Namensvorschlag. Unter **Bilder** gibt es drei Modi:
-
-- **Automatisch** (Standard): Bei lokalem llama.cpp mit geladenem Vision-Projektor wird das Bild direkt ausgewertet; sonst bleibt die bisherige OCR-Texterkennung aktiv.
-- **Bildinhalt mit Vision-Modell**: Explizite Bildauswertung, auch für ein geeignetes Ollama-Vision-Modell. Textmodelle ohne Vision-Projektor werden mit einem Hinweis abgewiesen.
-- **Nur Text erkennen (OCR)**: Vorhandene OCR-Verarbeitung für Dokument-Scans, unabhängig vom geladenen Vision-Modell.
-
-Unter KI SmolVLM2 herunterladen/laden und im Namensschema `{titel}` verwenden, beispielsweise `{dokumenttyp}_{titel}`. Für die Vision-Auswertung ist keine OCR erforderlich. Bilder werden im Arbeitsspeicher auf maximal 1024 × 1024 Pixel vorbereitet, gedreht und bei Transparenz auf Weiß gesetzt. Über 100 MB oder 48 Megapixel große Bilder werden abgewiesen. Originale und Metadaten werden nicht geändert; lediglich der Dateiname ändert sich nach ausdrücklichem Klick. Datumsangaben werden bei reiner Vision-Auswertung konservativ weggelassen. Die Erkennung kann Inhalte oder Details falsch beschreiben; Vorschläge vor dem Umbenennen prüfen. Bei lokalem llama.cpp bleiben Bilder lokal, bei Ollama werden die vorbereiteten Bilder an die konfigurierte Adresse gesendet.
-
-
-### Gemischte Stapel und Prüfschritte (0.9.0)
-
-**Automatische lokale Modellwahl:** Unter KI ist die automatische Auswahl für llama.cpp standardmäßig aktiv. Dokumente verwenden wahlweise Qwen3 4B oder Mistral 7B; Bilder und Videos verwenden SmolVLM2 samt Projektor. Bilder im Modus „Nur Text erkennen“ verwenden OCR und das Textmodell. Fehlende Katalogmodelle werden erst beim Analysieren heruntergeladen, vorhandene Dateien wiederverwendet. Laden und Wechsel laufen im Worker mit Fortschrittsanzeige und Abbruch; nur ein Modell bleibt gleichzeitig geladen. Für eigene GGUFs oder manuelle Kontrolle die automatische Auswahl ausschalten. Bei Ollama bleibt das konfigurierte Servermodell maßgeblich.
-
-**Getrennte Namensvorlagen:** Unter Allgemein gibt es Dokumente, Bilder (Standard `{titel}`) und Videos (Standard `Video_{titel}`). Das vorhandene Dokumentenschema bleibt erhalten. Die Vorlagen gelten bei beiden Backends; PNG/JPEG verwenden auch im OCR-Modus die Bildvorlage. Ein leerer Eintrag für Bilder/Video verwendet das Dokumentenschema. Ungültige Platzhalter werden vor Beginn abgewiesen.
-
-**Erneut analysieren:** Die über Checkboxen markierten Dateien können mit „Erneut analysieren …“ unabhängig vom Sitzungsspeicher neu ausgewertet werden. Ein optionaler Hinweis (maximal 500 Zeichen) gilt nur für diesen Durchlauf, etwa „kürzer benennen“. Er wird dem gewählten Backend übergeben, nicht dauerhaft gespeichert und nicht als Beleg für Datumsangaben verwendet. Abbrechen des Hinweisdialogs startet keine Analyse.
-
-**Ausgewertete Video-Frames:** Nach einer erfolgreichen Analyse zeigt die Vorschau die tatsächlich an das Modell übergebenen Frames mit Zeitpositionen. Anklicken zeigt den gewählten Frame größer. Vor der Analyse bleibt die einzelne lokale Vorschau verfügbar. Diese Stichproben werden nur begrenzt im Sitzungsspeicher gehalten; nach dessen Verdrängung bleibt die normale Vorschau verfügbar.
-
-**Umbenennungsübersicht:** „Auswahl umbenennen“ zeigt alter Name → neuer Name für die komplette ausgewählte Aktion. Konflikte, fehlende Namen und seit der Analyse veränderte Quellen blockieren die Bestätigung. Fehlende Metadaten werden als Hinweis hervorgehoben, unveränderte Namen gekennzeichnet. „Zurück“ verändert nichts. „Jetzt umbenennen“ führt ausschließlich den geprüften Stapel aus; später vom Eingangsordner importierte Dateien werden nicht ungeprüft mit umbenannt. Vor der Ausführung wird erneut geprüft, und die bestehenden atomaren Regeln gegen Überschreiben sowie Rückgängig bleiben aktiv.
-
-**Wiedererkennen innerhalb der Sitzung:** Erneuter Import oder Analyse unveränderter Dateien übernimmt den letzten erfolgreichen Vorschlag, einschließlich manueller Korrekturen. Wiederverwendung verlangt denselben Pfad, dieselbe Dateiidentität, Größe, Änderungs-/Metadatenzeit und dieselben Analyse-Einstellungen. Neue Hinweise werden durch ausdrückliche erneute Analyse wirksam. Eigene Umbenennungen und Rückgängig übertragen die Ergebnisse auf den neuen beziehungsweise ursprünglichen Pfad. Fehlgeschlagene oder abgebrochene Analysen werden nicht als neue Ergebnisse gespeichert. Der Speicher hält höchstens 64 Ergebnisse und 32 MiB kodierte Frames; ältere Einträge werden verdrängt. Es wird keine Historie auf Festplatte angelegt. Beim Beenden endet die Sitzung.
-
-
-### Namensregeln und Vorlagen (0.10.0)
-
-Unter **Allgemein** stehen editierbare Vorlagen für Rechnungen, Verträge, allgemeine Dokumente, Fotos und Videos bereit. „Vorlage übernehmen“ verändert nur das passende Schema für Dokumente, Bilder oder Videos. Die drei synthetischen Beispielnamen aktualisieren sich bei jeder Änderung; vorhandene Dateinamen werden dadurch nicht verändert.
-
-Neue Vorschläge berücksichtigen eine maximale Gesamtlänge (40–240, Standard 180; begrenzt zusätzlich nach UTF-8-Bytes), Leerzeichen oder Unterstriche, beibehaltene/kleine/große Schreibweise, optionale Umlaut-Ersetzung und Windows-/NAS-kompatible Absicherung. Die originale Dateiendung bleibt unverändert. Reservierte Gerätenamen erhalten bei aktivierter Kompatibilität einen Vorsatz. Auch Nummernzusätze bei Konflikten halten das Längenlimit ein. Manuelle Korrekturen bleiben möglich; die Bestätigung prüft gültige Namen und das konfigurierte Längenlimit erneut.
-
-### Optionales Einsortieren (0.10.0)
-
-Unter **Einsortieren** kann das Verschieben beim bestätigten Umbenennen aktiviert werden. Einen vorhandenen Zielordner auswählen und ein relatives Unterordner-Schema angeben, beispielsweise `{jahr}/{dokumenttyp}` oder `{jahr}/{monat}/{absender}`. Leer bedeutet direkt im Zielordner. Ein synthetischer Zielpfad zeigt die Wirkung. Die Werte stammen aus der erfolgreichen Analyse. Ein fehlendes Datum liefert `Ohne_Datum`, andere fehlende Felder liefern `Unsortiert`; das aktuelle Jahr wird nicht erfunden. Pfadzeichen in Metadaten können keine zusätzlichen Ordnerstufen erzeugen. Pfadsprünge, unbekannte Felder, absolute Unterordner-Schemata und symbolische Links werden abgewiesen.
-
-Die Umbenennungsübersicht zeigt bei Verschiebungen vollständige Quell- und Zielpfade. Erst **Jetzt ausführen** legt nötige Unterordner an und verschiebt die geprüften Dateien. Später importierte Dateien bleiben außerhalb dieser bestätigten Aktion. Bestehende Dateien werden auch bei einem verspäteten Konflikt nicht überschrieben. Bei Fehlern wird der bereits ausgeführte Teil soweit möglich zurückgenommen; verbleibende Aktionen bleiben in der Sitzung rückgängig machbar. Rückgängig stellt Namen und Speicherorte wieder her und entfernt ausschließlich von dieser Aktion neu erzeugte, weiterhin leere Ordner. Bereits vorhandene oder inzwischen gefüllte Ordner bleiben erhalten.
-
-Die erste Version unterstützt Einsortieren auf **demselben Dateisystem** unter macOS/Linux. Andere Laufwerke und Dateisysteme ohne Hardlink-Unterstützung werden mit Fehler abgewiesen, bevor eine Quelle entfernt wird. Es gibt keinen automatischen Kopier-/Lösch-Fallback. Durch diese Einschränkung bleiben große Videos ohne langes Kopieren verschiebbar. Eingangsordner, Modellordner und produktive Dokumente werden nicht selbsttätig umorganisiert.
+Kostenlos und Open Source · Lokale KI möglich · Kein Cloud-Konto für die Analyse nötig
+
+> **Aktueller Download:** Die Testversion liegt derzeit in GitHub Actions. Dafür
+> ist eine GitHub-Anmeldung erforderlich. Wähle den neuesten erfolgreichen Lauf
+> und dort **Nomi-macos** unter **Artifacts**.
+> [Download und Voraussetzungen](docs/DOWNLOAD.md)
+
+![Vom Import über den Namensvorschlag bis zur geprüften Ablage](docs/images/workflow.svg)
+
+## Weniger suchen. Dateien wiederfinden.
+
+- **Rechnungen und Verträge verständlich benennen.** Datum, Absender, Dokumenttyp
+  oder Rechnungsnummer können Teil des Namens werden.
+- **Fotos und Videos beschreiben lassen.** Nomi erkennt sichtbare Motive auch dann,
+  wenn kein Text vorhanden ist.
+- **Ganze Ordner gemeinsam bearbeiten.** Vorschläge ansehen, einzelne Dateien
+  abwählen und Namen direkt korrigieren.
+- **Eine einheitliche Ablage schaffen.** Eigene Namensregeln und Ordner wie
+  `2026/Rechnung` verwenden.
+- **Die Kontrolle behalten.** Vor der Ausführung zeigt Nomi die Änderungen;
+  bestehende Dateien werden nicht überschrieben. Rückgängig ist in derselben
+  geöffneten Sitzung möglich.
+
+Beispiele mit fiktiven Inhalten und angepassten Vorlagen:
+
+| Vorher | Möglicher neuer Name |
+| --- | --- |
+| `scan_0042.pdf` | `2026-10-16_Mueller_GmbH_Rechnung_R-42.pdf` |
+| `IMG_1083.jpg` | `Haus_mit_rotem_Dach.jpg` |
+| `clip_07.mp4` | `Video_Fahrradtour_am_See.mp4` |
+
+## So benutzt du Nomi
+
+1. **Dateien hinzufügen.** Dateien oder Ordner ins Fenster ziehen. Unterordner
+   lassen sich bei Bedarf einbeziehen.
+2. **Auswahl analysieren.** Nomi erstellt Vorschläge im Hintergrund. Beim ersten
+   lokalen Durchlauf werden die benötigten KI-Modelle heruntergeladen.
+3. **Vorschläge prüfen.** Die Vorschau hilft beim Abgleich. Namen sind editierbar;
+   unerwünschte Dateien kannst du abwählen.
+4. **Änderungen bestätigen.** **Auswahl umbenennen** öffnet die Übersicht. Erst
+   **Jetzt umbenennen** beziehungsweise **Jetzt ausführen** verändert deine Dateien.
+
+Für den Einstieg brauchst du beim fertigen Mac-Paket weder Python noch eine
+separate Installation von Ollama, Tesseract oder FFmpeg.
+[Die erste Einrichtung Schritt für Schritt →](docs/START.md)
+
+## Was kannst du importieren?
+
+| Dateien | Was Nomi auswertet |
+| --- | --- |
+| PDF | Dokumenttext; gescannte Seiten mit eingeschalteter Texterkennung |
+| DOCX | Text und Tabellen, auch Kopf- und Fußzeilen |
+| TXT, Markdown, CSV | Enthaltenen Text |
+| PNG, JPG, JPEG | Bildmotive oder Text über die wählbare Texterkennung |
+| MP4, MOV, M4V, MKV, WEBM, AVI, TS | Verteilte Einzelbilder aus dem Video |
+
+Die Videoanalyse wertet keinen Ton aus. Nicht jeder Video-Codec wird unterstützt.
+HEIC, DOC und ODT gehören derzeit nicht zu den unterstützten Formaten.
+[Mehr zu Formaten und Grenzen →](docs/FAQ.md)
+
+## Deine Ablage, deine Regeln
+
+Im Zahnrad-Menü findest du Vorlagen für Rechnungen, Verträge, Dokumente, Fotos und
+Videos. Passe Trennzeichen, Umlaute, Schreibweise und Namenslänge an; die
+Beispielvorschau zeigt sofort die Wirkung.
+
+Optional kannst du einen Zielordner und ein Schema wie `{jahr}/{dokumenttyp}`
+wählen. Die Bestätigung zeigt dann die vollständigen Zielpfade. Das Einsortieren
+funktioniert aktuell innerhalb desselben Dateisystems.
+
+Ein überwachter Eingangsordner nimmt neue Dateien in die Liste auf. Analysieren
+und Umbenennen bleiben deine Entscheidung.
+[Einstellungen und Vorlagen kennenlernen →](docs/SETTINGS.md)
+
+## Lokal arbeiten
+
+Im lokalen Modus bleiben Dokumenttexte, Bilder und Video-Einzelbilder auf deinem
+Mac. Nomi lädt die benötigten Modelle einmalig herunter; danach ist die Analyse
+mit diesen Modellen auch ohne Internet möglich.
+
+Für Dokumente steht Qwen als Standard bereit, alternativ Mistral. Für Bilder und
+Videos verwendet die automatische lokale Auswahl SmolVLM2. Wer schon einen
+Ollama-Server nutzt, kann diesen stattdessen eintragen. Dann gehen die ausgewählten
+Inhalte an die konfigurierte Serveradresse.
+[Datenschutz und Speicherbedarf →](docs/FAQ.md)
+
+## Bereit zum Ausprobieren?
+
+[**Testbuilds für macOS öffnen →**](https://github.com/mbosch81/nomi/actions/workflows/tests.yml?query=branch%3Amain)
+
+Nomi ist eine frühe Testversion für Macs mit Apple Silicon. Die Pakete sind noch
+nicht von Apple notarisiert. Starte mit wenigen Testkopien und prüfe die
+vorgeschlagenen Namen: KI kann Inhalte falsch erkennen oder Angaben weglassen.
+[Passenden Download finden →](docs/DOWNLOAD.md)
+
+[Fehler melden oder einen Wunsch einreichen](https://github.com/mbosch81/nomi/issues)
+· [Änderungen je Version (English)](CHANGELOG.md)
+· [Entwicklung und eigene Builds](docs/DEVELOPMENT.md)
+
+Nomi steht unter der [MIT-Lizenz](LICENSE). Enthaltene Werkzeuge und KI-Modelle
+haben eigene Lizenzbedingungen.

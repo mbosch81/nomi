@@ -8,6 +8,17 @@ release date. Features developed across several commits are grouped under the
 version in which they were completed. Documentation-only updates do not change
 the application version.
 
+## [Unreleased]
+
+### Documentation
+
+- Replaced the developer-focused README with a user-facing product overview,
+  concrete use cases, examples, and the verified Mac test-download path.
+- Added dedicated download, first-use, settings, and troubleshooting guides.
+- Moved technical setup, architecture, testing, and build details into a contributor guide.
+- Corrected outdated model-selection, image/video analysis, platform, and version claims.
+- Added an accessible workflow illustration and included linked guides in future app bundles.
+
 ## [0.10.0] - 2026-10-16
 
 ### Added
@@ -214,6 +225,7 @@ the application version.
 - Explicit batch renaming with no-overwrite checks, best-effort rollback, and session undo.
 - MIT licensing, project documentation, and synthetic core, HTTP, and Qt tests.
 
+[Unreleased]: https://github.com/mbosch81/nomi/compare/f98fe82...HEAD
 [0.10.0]: https://github.com/mbosch81/nomi/compare/e11420b...f98fe82
 [0.9.0]: https://github.com/mbosch81/nomi/compare/91aa37c...e11420b
 [0.8.1]: https://github.com/mbosch81/nomi/compare/1b8dd6c...91aa37c
