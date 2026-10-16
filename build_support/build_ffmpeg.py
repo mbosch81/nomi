@@ -5,6 +5,7 @@ import json
 import os
 import platform
 import shutil
+import shlex
 import subprocess
 import tarfile
 from urllib.request import urlopen
@@ -54,9 +55,24 @@ def build():
         env = dict(os.environ)
         if platform.system() == 'Darwin':env['MACOSX_DEPLOYMENT_TARGET'] = '13.3'
         log = work / 'ffmpeg-compile.log'
-        with log.open('w') as output:
-            subprocess.run((['bash', './configure'] if windows else ['./configure']) + flags, cwd=directory, env=env, stdout=output, stderr=subprocess.STDOUT, check=True)
-            subprocess.run(['make', '-j', str(min(os.cpu_count() or 2, 8))], cwd=directory, env=env, stdout=output, stderr=subprocess.STDOUT, check=True)
+        if windows:
+            env['CHERE_INVOKING'] = '1'
+        commands = [['./configure', *flags], ['make', '-j', str(min(os.cpu_count() or 2, 8))]]
+        with log.open('w', encoding='utf-8') as output:
+            for command in commands:
+                if windows:
+                    command = ['bash', '-lc', shlex.join(command)]
+                result = subprocess.run(command, cwd=directory, env=env, stdout=subprocess.PIPE,
+                                        stderr=subprocess.STDOUT, text=True, encoding='utf-8', errors='replace')
+                output.write(result.stdout)
+                output.flush()
+                if result.returncode:
+                    print('\n'.join(result.stdout.splitlines()[-80:]), flush=True)
+                    # Configure's compiler probe details help diagnose native CI builds.
+                    config_log = directory / 'ffbuild/config.log'
+                    if config_log.is_file():
+                        print('\n'.join(config_log.read_text(errors='replace').splitlines()[-60:]), flush=True)
+                    result.check_returncode()
         for name in ('ffmpeg', 'ffprobe'):
             shutil.copy2(directory / (name + suffix), destination / (name + suffix))
         shutil.copy2(directory / 'COPYING.LGPLv2.1', destination / 'COPYING.LGPLv2.1')

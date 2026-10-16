@@ -8,10 +8,10 @@ Nomi ist Open Source und steht unter der [MIT-Lizenz](../LICENSE). Die lokale
 Analyse benötigt kein kostenpflichtiges Cloud-Konto. Werkzeuge und Modelle haben
 eigene Lizenzbedingungen.
 
-## Verlassen meine Dateien den Mac?
+## Verlassen meine Dateien den Computer?
 
 Im Modus **Lokal · llama.cpp** werden Dokumenttexte, Bilder und Video-Einzelbilder
-auf deinem Mac verarbeitet. Für den ersten Modelldownload kontaktiert Nomi
+auf deinem Computer verarbeitet. Für den ersten Modelldownload kontaktiert Nomi
 Hugging Face; Dokumentinhalte werden dabei nicht mitgesendet.
 
 Im Modus **Ollama · Server** gehen die ausgewählten Inhalte an die eingestellte
@@ -31,7 +31,9 @@ Ollama-Server muss erreichbar bleiben, wenn du diesen Modus verwendest.
 ## Muss ich weitere Programme installieren?
 
 Beim fertigen Mac-Paket sind Python, Texterkennung, lokale KI-Laufzeit und
-Video-Werkzeuge enthalten. Die KI-Modelle lädt Nomi getrennt herunter.
+Video-Werkzeuge enthalten. Unter Windows sind Python, lokale KI-Laufzeit und
+Video-Werkzeuge ebenfalls eingebaut; Scan-OCR wird dort noch nicht mitgeliefert.
+Die KI-Modelle lädt Nomi getrennt herunter.
 Eine separate Installation von Ollama, FFmpeg oder Tesseract ist für den lokalen
 Standardbetrieb nicht erforderlich.
 
@@ -99,7 +101,8 @@ Rückgängig innerhalb der Sitzung ersetzt keine Sicherung wichtiger Dateien.
 
 ## Kann ich Dateien auf ein anderes Laufwerk einsortieren?
 
-Derzeit nur innerhalb desselben Dateisystems. Es gibt keinen automatischen
+Auf macOS/Linux derzeit nur innerhalb desselben Dateisystems. In der
+Windows-Vorschau ist Einsortieren noch deaktiviert. Es gibt keinen automatischen
 Kopier-/Lösch-Wechsel auf andere Laufwerke. Auch Dateisysteme ohne die benötigte
 Hardlink-Unterstützung können die Aktion ablehnen. Die Quelle bleibt bei dieser
 Ablehnung erhalten.
@@ -114,7 +117,7 @@ Analyse nötig machen. **Erneut analysieren …** berechnet Vorschläge immer ne
 
 Öffne ein [GitHub-Issue](https://github.com/mbosch81/nomi/issues) und nenne:
 
-- Nomi-Version, macOS-Version und Mac-Modell.
+- Nomi-Version, Betriebssystem-Version und Computermodell.
 - Dateityp und gewähltes KI-Modell.
 - Die Schritte und die angezeigte Fehlermeldung.
 

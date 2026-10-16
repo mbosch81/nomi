@@ -38,7 +38,7 @@ neue Analyse. Ein leeres Bild- oder Videoschema verwendet das Dokumentenschema.
 
 ## KI
 
-**Lokal · llama.cpp** verarbeitet deine Dateien auf deinem Mac. Die automatische
+**Lokal · llama.cpp** verarbeitet deine Dateien auf deinem Computer. Die automatische
 Modellwahl verwendet das ausgewählte Textmodell für Dokumente und SmolVLM2 für
 Bilder und Videos. Es ist jeweils nur ein Modell gleichzeitig geladen.
 
@@ -73,7 +73,7 @@ Zeitlimit begrenzt die Bildentnahme.
 
 Die Bilder werden über die Videolänge verteilt. Nach der Analyse zeigt die Vorschau
 die verwendete Stichprobe mit Zeitpositionen. Ton wird nicht ausgewertet.
-Eine eigene FFmpeg-Installation ist beim Mac-Paket nicht erforderlich.
+Eine eigene FFmpeg-Installation ist bei den fertigen Mac- und Windows-Paketen nicht erforderlich.
 
 ## Bilder
 
@@ -92,7 +92,8 @@ werden Datumsangaben konservativ weggelassen.
 
 Schalte **OCR für PDF- und Bildscans** für gescannte PDFs oder Bilder im OCR-Modus ein.
 **Automatisch** verwendet im Mac-Paket die enthaltene Apple-Texterkennung.
-Deutsch und Englisch sind voreingestellt.
+Deutsch und Englisch sind voreingestellt. Die Windows-Vorschau enthält noch keine
+Scan-Texterkennung; optional ist ein vorhandenes Tesseract nutzbar.
 
 PDF-Seiten mit wenig vorhandenem Text werden zusätzlich erkannt. Die Verarbeitung
 macht aus einem Scan keine neue durchsuchbare PDF und verändert nicht den Dateiinhalt.
@@ -109,6 +110,8 @@ während Analyse und Modell-Laden. Vollständig abgeschlossene Kopiervorgänge k
 nicht in jedem Fall erkannt werden; warte bei großen laufenden Übertragungen ab.
 
 ## Einsortieren
+
+Diese Funktion ist in der Windows-Vorschau deaktiviert. Auf macOS/Linux:
 
 1. Aktiviere **Beim Umbenennen in Zielordner einsortieren**.
 2. Wähle einen vorhandenen **Zielordner**.
