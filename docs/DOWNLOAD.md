@@ -2,56 +2,58 @@
 
 [← Zur Produktübersicht](../README.md) · [Erste Schritte](START.md)
 
-## Die aktuelle Testversion finden
+## Direkte Downloads ohne Anmeldung
 
-Nomi ist derzeit als Mac-Testbuild über GitHub Actions verfügbar. Ein öffentliches
-GitHub-Release mit direktem Download gibt es noch nicht. Für den aktuellen
-Downloadweg brauchst du eine GitHub-Anmeldung.
+[**Alle öffentlichen Releases →**](https://github.com/mbosch81/nomi/releases/latest)
 
-1. Öffne die [Nomi-Testbuilds](https://github.com/mbosch81/nomi/actions/workflows/tests.yml?query=branch%3Amain).
-2. Wähle den neuesten Lauf mit einem **grünen Haken**.
-3. Scrolle zu **Artifacts** und lade **Nomi-macos** herunter.
-4. Entpacke den Download. Falls darin noch `Nomi-macos.zip` liegt, entpacke auch
-   dieses Archiv, bis du **Nomi.app** siehst.
-5. Ziehe **Nomi.app** in deinen Ordner **Programme** und öffne sie dort.
+| Dein Computer | Download | Starten |
+| --- | --- | --- |
+| Windows 10/11, 64 Bit (x64) | [Einzelne EXE](https://github.com/mbosch81/nomi/releases/download/v0.11.0/Nomi-0.11.0-windows-x64.exe) | Speichern und doppelklicken; kein Installer |
+| Mac mit Apple Silicon, macOS 14.8 oder neuer | [Mac-App als ZIP](https://github.com/mbosch81/nomi/releases/download/v0.11.0/Nomi-0.11.0-macos-arm64.zip) | Entpacken, **Nomi.app** nach **Programme** ziehen und öffnen |
 
-Die ZIP-Dateien „Source code“ beziehungsweise der GitHub-Knopf „Download ZIP“
-enthalten den Quellcode. Für die fertige Anwendung brauchst du das oben genannte
-App-Paket.
+Die Pakete enthalten Python, Qt, llama.cpp und FFmpeg. Du brauchst dafür keine
+separaten Installationen. Die Windows-EXE entpackt ihre Bestandteile beim Start
+vorübergehend ins Temp-Verzeichnis. Die Mac-App ist ein einzelnes App-Paket.
 
-Downloads aus GitHub Actions laufen nach einiger Zeit ab. Fehlt bei einem älteren
-Lauf das Paket, wähle einen neueren erfolgreichen Lauf.
-[GitHubs Downloadanleitung](https://docs.github.com/de/actions/how-tos/manage-workflow-runs/download-workflow-artifacts)
+Die ZIP-Dateien **Source code** enthalten den Quellcode. Wähle für die fertige App
+die oben verlinkte EXE beziehungsweise das Mac-ZIP. **SHA256SUMS.txt** im Release
+enthält Prüfsummen; **LICENSE.txt** enthält Nomis MIT-Lizenz.
 
-## Passt Nomi zu deinem Mac?
+## Windows: erste technische Vorschau
 
-| Voraussetzung | Aktueller Stand |
-| --- | --- |
-| Prozessor | Apple Silicon, zum Beispiel M1, M2, M3 oder M4 |
-| macOS | Der am 16. Oktober 2026 geprüfte GitHub-Testbuild benötigt macOS 14.8 oder neuer |
-| Internet | Für den App-Download und das erstmalige Laden der KI-Modelle |
-| Freier Speicher | Zusätzlich zur App etwa 2,5 GB für Qwen; für Bilder/Video weitere etwa 1,7 GB |
-| Arbeitsspeicher | Der Bedarf liegt über der Modelldateigröße und hängt von Modell, Datei und übrigen Apps ab |
+Die EXE enthält die lokale CPU-Runtime. Text-PDFs, DOCX, TXT, Markdown und CSV
+können direkt analysiert werden. Bilder und Videos lassen sich mit dem
+Vision-Modell beschreiben. Umbenennen und Rückgängig benötigen ein Dateisystem mit
+Hardlink-Unterstützung, zum Beispiel NTFS. Bei fehlender Unterstützung bricht Nomi
+mit einem Fehler ab, ohne auf überschreibendes Umbenennen auszuweichen.
 
-Für Intel-Macs, Windows und Linux wird aktuell kein fertiges, hier zugesichertes
-Download-Paket angeboten. Informationen zu eigenen Builds stehen in der
-[Entwicklerdokumentation](DEVELOPMENT.md).
+Scan-OCR wird unter Windows noch nicht mitgeliefert; optional lässt sich ein bereits
+vorhandenes Tesseract verwenden. Einsortieren in andere Ordner ist deaktiviert.
+Die EXE wird automatisiert auf Windows Server 2022 einschließlich echter lokaler
+Qwen-Inferenz geprüft. Eine manuelle Prüfung auf einem privaten Windows-10/11-PC
+steht noch aus. Windows ARM wird nicht als eigenes Paket angeboten.
 
-Die Mindestversion hängt vom jeweiligen Build ab. Ein separat bereitgestellter
-lokaler Build kann eine neuere macOS-Version benötigen als das GitHub-Paket;
-beispielsweise wurde der lokale Build von Version 0.10.0 auf macOS 27 erstellt.
+## Mac: Apple Silicon
 
-## Beim Öffnen erscheint eine macOS-Meldung
+Die Mac-App enthält die Texterkennung über Apple Vision. Sie benötigt keine
+separate Installation von Tesseract. Das veröffentlichte ARM64-Paket wird auf
+macOS 14 gebaut und benötigt macOS 14.8 oder neuer. Ein Intel-Mac-Paket gibt es
+zurzeit nicht. Lokale Eigenbauten können eine neuere macOS-Version voraussetzen.
 
-Die Testpakete sind noch nicht mit einer Apple Developer ID signiert und
-notarisiert. macOS kann deshalb das Öffnen einschränken. Verwende ausschließlich
-Dateien aus diesem Projekt und beachte
-[Apples Hinweise zum sicheren Öffnen von Apps](https://support.apple.com/de-de/102445).
+## Modelle und Speicher
 
-Meldet macOS eine unpassende Version oder Architektur, prüfe zuerst die
-Voraussetzungen des Pakets. Bei einem beschädigten Download lade die Datei neu.
+Beim ersten Einsatz der lokalen KI lädt Nomi die passenden Modelle herunter:
+etwa **2,5 GB für Qwen**, für Bilder/Video zusätzlich **1,7 GB für SmolVLM2**.
+Mistral mit etwa **4,4 GB** ist optional. Danach funktionieren vorhandene Modelle
+ohne Internet. Der Arbeitsspeicherbedarf liegt über der Größe der Modelldatei.
 
-## Danach
+## Sicherheitsmeldung beim Öffnen
 
-Öffne Nomi und folge den [ersten Schritten](START.md). Die lokale Analyse braucht
-kein Cloud-Konto. Die benötigten Modelle werden getrennt vom App-Paket geladen.
+Die Windows-EXE ist noch nicht digital signiert; Windows kann deshalb eine
+SmartScreen-Meldung anzeigen. Die Mac-App ist ad hoc signiert, aber nicht mit einer
+Apple Developer ID signiert oder notarisiert. macOS kann das Öffnen einschränken.
+Verwende ausschließlich Dateien aus dem offiziellen Nomi-Repository und beachte
+[Apples Hinweise zum Öffnen von Apps](https://support.apple.com/de-de/102445).
+
+Starte mit wenigen Testkopien und prüfe die KI-Vorschläge. Lies anschließend die
+[ersten Schritte](START.md). Für Linux stehen derzeit nur eigene Builds zur Verfügung.

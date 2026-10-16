@@ -4,8 +4,8 @@
 
 ## 1. Nomi öffnen
 
-Lade das [passende Mac-Paket](DOWNLOAD.md) und öffne **Nomi.app** aus dem Ordner
-**Programme**. Für den ersten Versuch reichen drei bis fünf Kopien typischer Dateien.
+Lade den [passenden Download](DOWNLOAD.md). Unter Windows öffnest du die EXE;
+auf dem Mac entpackst du das ZIP und öffnest **Nomi.app** aus **Programme**. Für den ersten Versuch reichen drei bis fünf Kopien typischer Dateien.
 
 ## 2. Die lokale KI verwenden
 
@@ -16,6 +16,7 @@ Lade das [passende Mac-Paket](DOWNLOAD.md) und öffne **Nomi.app** aus dem Ordne
 - **Bilder und Videos:** Nomi verwendet SmolVLM2.
 - **Gescannte PDFs:** Schalte unter **Texterkennung** zusätzlich
   **OCR für PDF- und Bildscans** ein. Auf dem Mac ist die Texterkennung bereits enthalten.
+  Die Windows-Vorschau enthält noch keine Scan-OCR.
 
 Du musst keinen eigenen KI-Server einrichten. Beim ersten Analysieren lädt Nomi
 fehlende Modelle herunter. In der Statuszeile siehst du den Fortschritt. Vorhandene

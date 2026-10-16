@@ -8,16 +8,16 @@ schlägt passende Dateinamen vor und sortiert Dateien auf Wunsch in deine Ordner
 
 **Du prüfst die Vorschläge. Du entscheidest, was geändert wird.**
 
-[**macOS-Testversion herunterladen →**](https://github.com/mbosch81/nomi/actions/workflows/tests.yml?query=branch%3Amain)
+[**Nomi für Windows und macOS herunterladen →**](https://github.com/mbosch81/nomi/releases/latest)
 · [In wenigen Schritten starten](docs/START.md)
 · [Fragen und Antworten](docs/FAQ.md)
 
 Kostenlos und Open Source · Lokale KI möglich · Kein Cloud-Konto für die Analyse nötig
 
-> **Aktueller Download:** Die Testversion liegt derzeit in GitHub Actions. Dafür
-> ist eine GitHub-Anmeldung erforderlich. Wähle den neuesten erfolgreichen Lauf
-> und dort **Nomi-macos** unter **Artifacts**.
-> [Download und Voraussetzungen](docs/DOWNLOAD.md)
+> **Ohne Installer:** Windows als einzelne EXE, macOS als App im ZIP.
+> Öffentlich und ohne GitHub-Anmeldung herunterladen. Windows ist zunächst eine
+> technische Vorschau; Scan-OCR und Einsortieren sind dort noch nicht enthalten.
+> [Downloads und Voraussetzungen](docs/DOWNLOAD.md)
 
 ![Vom Import über den Namensvorschlag bis zur geprüften Ablage](docs/images/workflow.svg)
 
@@ -80,7 +80,8 @@ Beispielvorschau zeigt sofort die Wirkung.
 
 Optional kannst du einen Zielordner und ein Schema wie `{jahr}/{dokumenttyp}`
 wählen. Die Bestätigung zeigt dann die vollständigen Zielpfade. Das Einsortieren
-funktioniert aktuell innerhalb desselben Dateisystems.
+funktioniert aktuell auf macOS/Linux innerhalb desselben Dateisystems.
+In der Windows-Vorschau ist Einsortieren deaktiviert.
 
 Ein überwachter Eingangsordner nimmt neue Dateien in die Liste auf. Analysieren
 und Umbenennen bleiben deine Entscheidung.
@@ -89,7 +90,7 @@ und Umbenennen bleiben deine Entscheidung.
 ## Lokal arbeiten
 
 Im lokalen Modus bleiben Dokumenttexte, Bilder und Video-Einzelbilder auf deinem
-Mac. Nomi lädt die benötigten Modelle einmalig herunter; danach ist die Analyse
+Computer. Nomi lädt die benötigten Modelle einmalig herunter; danach ist die Analyse
 mit diesen Modellen auch ohne Internet möglich.
 
 Für Dokumente steht Qwen als Standard bereit, alternativ Mistral. Für Bilder und
@@ -100,10 +101,10 @@ Inhalte an die konfigurierte Serveradresse.
 
 ## Bereit zum Ausprobieren?
 
-[**Testbuilds für macOS öffnen →**](https://github.com/mbosch81/nomi/actions/workflows/tests.yml?query=branch%3Amain)
+[**Öffentliche Downloads öffnen →**](https://github.com/mbosch81/nomi/releases/latest)
 
-Nomi ist eine frühe Testversion für Macs mit Apple Silicon. Die Pakete sind noch
-nicht von Apple notarisiert. Starte mit wenigen Testkopien und prüfe die
+Nomi ist eine frühe Testversion für Macs mit Apple Silicon und Windows x64.
+Die Windows-EXE ist nicht digital signiert, die Mac-App noch nicht von Apple notarisiert. Starte mit wenigen Testkopien und prüfe die
 vorgeschlagenen Namen: KI kann Inhalte falsch erkennen oder Angaben weglassen.
 [Passenden Download finden →](docs/DOWNLOAD.md)
 

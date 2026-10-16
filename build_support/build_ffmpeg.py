@@ -39,9 +39,12 @@ def build():
     source = work / f'ffmpeg-{VERSION}-{platform.machine()}'
     destination = root / 'nomi' / 'bin' / 'ffmpeg'
     destination.mkdir(parents=True, exist_ok=True)
-    recipe = {'version': VERSION, 'sha256': SHA256, 'flags': FLAGS, 'arch': platform.machine()}
+    windows = platform.system() == 'Windows'
+    suffix = '.exe' if windows else ''
+    flags = FLAGS + (['--target-os=mingw32', '--extra-ldflags=-static'] if windows else [])
+    recipe = {'version': VERSION, 'sha256': SHA256, 'flags': flags, 'arch': platform.machine(), 'os': platform.system()}
     stamp = destination / 'build.json'
-    if not all((destination / name).is_file() for name in ('ffmpeg', 'ffprobe')) or not stamp.exists() or json.loads(stamp.read_text()) != recipe:
+    if not all((destination / (name + suffix)).is_file() for name in ('ffmpeg', 'ffprobe')) or not stamp.exists() or json.loads(stamp.read_text()) != recipe:
         if source.exists():shutil.rmtree(source)
         source.mkdir()
         with tarfile.open(archive) as handle:
@@ -52,13 +55,13 @@ def build():
         if platform.system() == 'Darwin':env['MACOSX_DEPLOYMENT_TARGET'] = '13.3'
         log = work / 'ffmpeg-compile.log'
         with log.open('w') as output:
-            subprocess.run(['./configure', *FLAGS], cwd=directory, env=env, stdout=output, stderr=subprocess.STDOUT, check=True)
+            subprocess.run((['bash', './configure'] if windows else ['./configure']) + flags, cwd=directory, env=env, stdout=output, stderr=subprocess.STDOUT, check=True)
             subprocess.run(['make', '-j', str(min(os.cpu_count() or 2, 8))], cwd=directory, env=env, stdout=output, stderr=subprocess.STDOUT, check=True)
         for name in ('ffmpeg', 'ffprobe'):
-            shutil.copy2(directory / name, destination / name)
+            shutil.copy2(directory / (name + suffix), destination / (name + suffix))
         shutil.copy2(directory / 'COPYING.LGPLv2.1', destination / 'COPYING.LGPLv2.1')
         stamp.write_text(json.dumps(recipe, indent=2)+'\n')
-    license_text = subprocess.check_output([str(destination / 'ffmpeg'), '-L'], stderr=subprocess.STDOUT, text=True)
+    license_text = subprocess.check_output([str(destination / ('ffmpeg' + suffix)), '-L'], stderr=subprocess.STDOUT, text=True)
     if 'GNU Lesser General Public' not in license_text or 'version 2.1' not in license_text or '--enable-gpl' in license_text or '--enable-nonfree' in license_text:
         raise ValueError('Unexpected FFmpeg licensing configuration')
     shutil.copy2(archive, destination / archive.name)

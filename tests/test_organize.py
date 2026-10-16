@@ -7,6 +7,7 @@ from unittest.mock import patch
 from nomi.core import Settings,undo,RenameError
 from nomi.organize import destination_for,organize_batch,secure_move,validate_destination
 
+@unittest.skipUnless(os.name == 'posix', 'Secure directory organization requires POSIX directory descriptors')
 class OrganizeTests(unittest.TestCase):
     def setUp(self):
         self.temp=TemporaryDirectory();self.root=Path(self.temp.name).resolve()
@@ -106,6 +107,7 @@ class OrganizeTests(unittest.TestCase):
         with self.assertRaises(ValueError):undo(records)
         self.assertTrue(dest.exists())
 
+@unittest.skipUnless(os.name == 'posix', 'Folder organization is unavailable in Windows preview')
 class OrganizeUITests(unittest.TestCase):
     def test_all_metadata_survives_large_batch(self):
         from PySide6.QtWidgets import QApplication

@@ -1,0 +1,130 @@
+name: Release packages
+on:
+  workflow_dispatch:
+    inputs:
+      publish:
+        description: Publish a public release after BOTH package checks pass
+        type: boolean
+        default: false
+permissions:
+  contents: read
+jobs:
+  macos:
+    runs-on: macos-14
+    timeout-minutes: 30
+    env:
+      QT_QPA_PLATFORM: offscreen
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+      - uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1
+        with:
+          python-version: '3.14'
+          cache: pip
+      - run: python -m pip install -e '.[ocr,build]'
+      - run: python -m PyInstaller --noconfirm build_support/Nomi.spec
+      - run: python -m unittest discover -s tests -v
+      - name: Verify the packaged application
+        env:
+          PATH: /usr/bin:/bin:/usr/sbin:/sbin
+        run: |
+          codesign --verify --deep --strict dist/Nomi.app
+          dist/Nomi.app/Contents/MacOS/Nomi --runtime-check
+          dist/Nomi.app/Contents/MacOS/Nomi --self-test
+      - name: Package standalone app
+        run: |
+          VERSION=$(python -c "import importlib.metadata; print(importlib.metadata.version('nomi-renamer'))")
+          ditto -c -k --sequesterRsrc --keepParent dist/Nomi.app "dist/Nomi-${VERSION}-macos-arm64.zip"
+          cp LICENSE dist/LICENSE.txt
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: release-macos
+          path: |
+            dist/Nomi-*-macos-arm64.zip
+            dist/LICENSE.txt
+          if-no-files-found: error
+  windows:
+    runs-on: windows-2022
+    timeout-minutes: 40
+    env:
+      QT_QPA_PLATFORM: offscreen
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+      - uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1
+        with:
+          python-version: '3.14'
+          cache: pip
+      - id: msys
+        uses: msys2/setup-msys2@ec48f7c5447b3140e2b088413ae3a55687bccb6e
+        with:
+          msystem: UCRT64
+          update: false
+          install: make mingw-w64-ucrt-x86_64-gcc diffutils
+      - name: Set native compiler environment
+        shell: pwsh
+        run: |
+          "${{ steps.msys.outputs.msys2-location }}\ucrt64\bin" | Out-File -FilePath $env:GITHUB_PATH -Append
+          "${{ steps.msys.outputs.msys2-location }}\usr\bin" | Out-File -FilePath $env:GITHUB_PATH -Append
+          "MSYSTEM=UCRT64" | Out-File -FilePath $env:GITHUB_ENV -Append
+          "MSYS2_PATH_TYPE=inherit" | Out-File -FilePath $env:GITHUB_ENV -Append
+      - run: python -m pip install -e '.[ocr,build]'
+      - run: python -m PyInstaller --noconfirm build_support/Nomi-windows.spec
+      - run: python -m unittest discover -s tests -v
+      - name: Test single EXE without external runtime tools on PATH
+        shell: pwsh
+        run: |
+          $env:PATH = "$env:SystemRoot\System32;$env:SystemRoot"
+          foreach ($check in @('--runtime-check', '--self-test')) {
+            $output = Join-Path $env:RUNNER_TEMP ($check.TrimStart('-') + '.json')
+            $process = Start-Process -FilePath "$pwd\dist\Nomi.exe" -ArgumentList @($check, '--diagnostic-output', $output) -Wait -PassThru
+            Get-Content $output
+            if ($process.ExitCode -ne 0) { throw "Packaged check failed: $check ($($process.ExitCode))" }
+            $result = (Get-Content $output | Select-Object -Last 1) | ConvertFrom-Json
+            if (-not $result.ok) { throw "Packaged check did not report success" }
+          }
+      - name: Verify local inference with the actual Qwen model
+        shell: pwsh
+        run: |
+          python -c "from nomi.local_model import download_default_model; download_default_model()"
+          $env:PATH = "$env:SystemRoot\System32;$env:SystemRoot"
+          $output = Join-Path $env:RUNNER_TEMP 'llama-self-test.json'
+          $process = Start-Process -FilePath "$pwd\dist\Nomi.exe" -ArgumentList @('--llama-self-test', '--diagnostic-output', $output) -Wait -PassThru
+          Get-Content $output
+          if ($process.ExitCode -ne 0) { throw 'Packaged local inference failed' }
+          $result = (Get-Content $output | Select-Object -Last 1) | ConvertFrom-Json
+          if (-not $result.ok -or -not $result.local_inference) { throw 'Local inference was not verified' }
+      - name: Name portable EXE
+        shell: pwsh
+        run: |
+          $version = python -c "import importlib.metadata; print(importlib.metadata.version('nomi-renamer'))"
+          Move-Item dist/Nomi.exe "dist/Nomi-$version-windows-x64.exe"
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: release-windows
+          path: dist/Nomi-*-windows-x64.exe
+          if-no-files-found: error
+  publish:
+    if: inputs.publish
+    needs: [macos, windows]
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
+        with:
+          pattern: release-*
+          merge-multiple: true
+          path: release
+      - name: Publish verified downloads
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          VERSION=$(python3 -c "import tomllib; print(tomllib.load(open('pyproject.toml', 'rb'))['project']['version'])")
+          if git ls-remote --exit-code --tags origin "refs/tags/v${VERSION}"; then
+            echo "Refusing to reuse an existing release tag" >&2
+            exit 1
+          fi
+          cd release
+          sha256sum Nomi-* LICENSE.txt > SHA256SUMS.txt
+          cd ..
+          gh release create "v${VERSION}" release/* --target "$GITHUB_SHA" --title "Nomi ${VERSION}" --notes-file build_support/RELEASE_NOTES.md --fail-on-no-commits

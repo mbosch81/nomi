@@ -13,10 +13,11 @@ from urllib.request import Request, build_opener, ProxyHandler
 from urllib.error import HTTPError
 from .core import Settings, AnalysisCancelled, metadata_messages, metadata_schema, parse_metadata
 from .local_model import check_model
+from .process import process_options
 
 
 def runtime_path() -> Path:
-    bundled = Path(__file__).resolve().parent / 'bin' / 'llama' / 'llama-server'
+    bundled = Path(__file__).resolve().parent / 'bin' / 'llama' / ('llama-server.exe' if os.name == 'nt' else 'llama-server')
     if bundled.is_file():
         return bundled
     installed = shutil.which('llama-server')
@@ -119,7 +120,7 @@ class LocalEngine:
                 args += ['--mmproj', str(projector)]
             progress('Lokales Modell wird geladen …')
             self._process = subprocess.Popen(args, env=environment, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
-                                              stdin=subprocess.DEVNULL)
+                                              stdin=subprocess.DEVNULL, **process_options())
             url = f'http://127.0.0.1:{port}'
             started = time.monotonic()
             try:

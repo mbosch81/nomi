@@ -1,6 +1,7 @@
 """Offline smoke check for the built application, using only temporary files."""
 from pathlib import Path
 from tempfile import TemporaryDirectory
+import os
 import hashlib
 import json
 from PySide6.QtCore import QSettings, QTimer
@@ -40,14 +41,19 @@ def run_self_test(app) -> int:
 
         (root / 'preview.txt').write_text('Lokale Textvorschau Beispiel GmbH', encoding='utf-8')
         before = hashlib.sha256(source.read_bytes()).hexdigest()
-        document = extract_document(source, settings=Settings(ocr_enabled=True, ocr_language='eng'))
-        if not document.used_ocr or 'Beispiel' not in document.text:
-            raise RuntimeError('OCR-Selbsttest fehlgeschlagen.')
-        for image_source in (root / 'scan.png', root / 'scan.jpg'):
-            original = image_source.read_bytes()
-            recognized = extract_document(image_source, settings=Settings(ocr_enabled=True, ocr_language='eng'))
-            assert recognized.used_ocr and 'Beispiel' in recognized.text
-            assert image_source.read_bytes() == original
+        document = None
+        if os.name != 'nt':
+            document = extract_document(source, settings=Settings(ocr_enabled=True, ocr_language='eng'))
+            if not document.used_ocr or 'Beispiel' not in document.text:
+                raise RuntimeError('OCR-Selbsttest fehlgeschlagen.')
+            for image_source in (root / 'scan.png', root / 'scan.jpg'):
+                original = image_source.read_bytes()
+                recognized = extract_document(image_source, settings=Settings(ocr_enabled=True, ocr_language='eng'))
+                assert recognized.used_ocr and 'Beispiel' in recognized.text
+                assert image_source.read_bytes() == original
+        else:
+            source = root / 'preview.txt'
+            before = hashlib.sha256(source.read_bytes()).hexdigest()
         store = QSettings(str(root / 'settings.ini'), QSettings.Format.IniFormat)
         store.setValue('engine', 'ollama')
         window = Window(store=store)
@@ -55,7 +61,7 @@ def run_self_test(app) -> int:
         window.add([source])
         window.table.item(0, 2).setText(make_name({'absender': 'Beispiel GmbH', 'dokumenttyp': 'Rechnung'}, source, Settings().template))
 
-        preview_paths = [source, root / 'scan.png', root / 'scan.jpg', root / 'preview.txt', docx]
+        preview_paths = [root / 'scan.pdf', root / 'scan.png', root / 'scan.jpg', root / 'preview.txt', docx]
         preview_index = [0]
         preview_ticks = [0]
         timer = QTimer()
@@ -78,36 +84,38 @@ def run_self_test(app) -> int:
                 window.review_rename()
                 assert source.exists() and window.rename_review.confirm.isEnabled()
                 window.rename_review.accept()
-                target = root / 'Beispiel_GmbH_Rechnung.pdf'
+                target = root / ('Beispiel_GmbH_Rechnung' + source.suffix)
                 assert target.exists() and not source.exists()
                 window.revert()
                 assert hashlib.sha256(source.read_bytes()).hexdigest() == before
                 assert not target.exists()
-                archive=root/'Sorted';archive.mkdir()
-                window.organize_root.setText(str(archive))
-                window.organize_enabled.setChecked(True)
-                window.transliterate_umlauts.setChecked(True)
-                window.name_case.setCurrentIndex(window.name_case.findData('lower'))
-                metadata={'datum':'2026-10-16','absender':'Müller GmbH','dokumenttyp':'Rechnung'}
-                settings=window.settings()
-                window.table.item(0,2).setText(make_name(metadata,source,'{datum}_{absender}_{dokumenttyp}',settings))
-                from .session import file_identity
-                window.remember_analysis(0,dict(identity=file_identity(source),settings=settings,metadata=metadata,frames=[]))
-                window.review_rename()
-                assert window.rename_review.confirm.isEnabled() and source.exists()
-                assert not (archive/'2026').exists()
-                window.rename_review.accept()
-                assert window.paths[0].parent==archive/'2026/rechnung'
-                assert 'mueller' in window.paths[0].name and not source.exists()
-                window.revert()
-                assert hashlib.sha256(source.read_bytes()).hexdigest()==before
-                assert archive.exists() and not (archive/'2026').exists()
-                result.update(ok=True, organize=True, naming_rules=True, video_frames=True, docx=True, inbox_snapshot=True, preview=True, image_ocr=True, ocr=True, ocr_backend=document.ocr_backend, qt=True, rename=True, undo=True)
+                if os.name != 'nt':
+                    archive=root/'Sorted';archive.mkdir()
+                    window.organize_root.setText(str(archive))
+                    window.organize_enabled.setChecked(True)
+                    window.transliterate_umlauts.setChecked(True)
+                    window.name_case.setCurrentIndex(window.name_case.findData('lower'))
+                    metadata={'datum':'2026-10-16','absender':'Müller GmbH','dokumenttyp':'Rechnung'}
+                    settings=window.settings()
+                    window.table.item(0,2).setText(make_name(metadata,source,'{datum}_{absender}_{dokumenttyp}',settings))
+                    from .session import file_identity
+                    window.remember_analysis(0,dict(identity=file_identity(source),settings=settings,metadata=metadata,frames=[]))
+                    window.review_rename()
+                    assert window.rename_review.confirm.isEnabled() and source.exists()
+                    assert not (archive/'2026').exists()
+                    window.rename_review.accept()
+                    assert window.paths[0].parent==archive/'2026/rechnung'
+                    assert 'mueller' in window.paths[0].name and not source.exists()
+                    window.revert()
+                    assert hashlib.sha256(source.read_bytes()).hexdigest()==before
+                    assert archive.exists() and not (archive/'2026').exists()
+                result.update(ok=True, organize=os.name != 'nt', naming_rules=True, video_frames=True, docx=True, inbox_snapshot=True, preview=True, image_ocr=document is not None, ocr=document is not None, ocr_backend=document.ocr_backend if document else None, qt=True, rename=True, undo=True)
             except Exception as error:
                 result.update(ok=False, error=type(error).__name__)
             timer.stop()
             window.close()
 
+        window.preview.show_path(preview_paths[0])
         window.show()
         timer.timeout.connect(check)
         timer.start(20)
@@ -143,6 +151,9 @@ def run_llama_self_test(app) -> int:
             draw.text((60, 40 + index * 120), line, fill='black', font=ImageFont.load_default(size=50))
         image.save(source)
         image.close()
+        if os.name == 'nt':
+            source = root / 'invoice.txt'
+            source.write_text('Rechnung Beispiel GmbH Rechnungsdatum: 14.10.2026 Rechnungsnummer: TEST-42', encoding='utf-8')
         before = hashlib.sha256(source.read_bytes()).hexdigest()
         store = QSettings(str(root / 'settings.ini'), QSettings.Format.IniFormat)
         for key, value in {'engine': 'llama', 'llama_model': str(model), 'ocr_enabled': True, 'auto_models': False, 'image_analysis': 'ocr', 'image_template': '{datum}_{absender}_{dokumenttyp}'}.items():
@@ -174,14 +185,14 @@ def run_llama_self_test(app) -> int:
             elif phase[0] == 'analysis':
                 try:
                     assert window.table.item(0, 2).text()
-                    assert 'OCR' in window.table.item(0, 3).text()
+                    if os.name != 'nt':assert 'OCR' in window.table.item(0, 3).text()
                     assert hashlib.sha256(source.read_bytes()).hexdigest() == before
                     result['analysis_seconds'] = round(time.monotonic() - generation_started[0], 2)
                     window.rename()
                     assert not source.exists()
                     window.revert()
                     assert hashlib.sha256(source.read_bytes()).hexdigest() == before
-                    result.update(ok=True, autoload=True, local_inference=True, ocr=True, rename=True, undo=True, ui_ticks=len(ticks))
+                    result.update(ok=True, autoload=True, local_inference=True, ocr=os.name != 'nt', rename=True, undo=True, ui_ticks=len(ticks))
                 except Exception as error:
                     result.update(ok=False, error=type(error).__name__)
                 timer.stop();window.close()

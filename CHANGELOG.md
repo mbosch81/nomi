@@ -10,6 +10,26 @@ the application version.
 
 ## [Unreleased]
 
+## [0.11.0] - 2026-10-16
+
+### Added
+
+- Public release packages: a standalone Windows x64 single EXE and an Apple Silicon
+  macOS app ZIP, without installers, plus MIT license and SHA-256 checksums.
+- Verified pinned Windows CPU llama.cpp runtime and a source-built minimal LGPL
+  FFmpeg runtime, embedded in the executable; no external runtime installation.
+- A manually dispatched release pipeline that publishes only after both platform
+  tests and packaged checks pass, including actual Qwen inference on Windows.
+- Explicit diagnostics output for the windowed executable during CI smoke checks.
+
+### Changed
+
+- Windows helper processes no longer open console windows.
+- Windows preview disables POSIX-only folder organization and explains that scan
+  OCR is not bundled; optional existing Tesseract remains available.
+- Platform-specific test fixtures and diagnostics now distinguish unsupported
+  Windows features from verified portable rename, undo, preview, and inference.
+
 ### Documentation
 
 - Replaced the developer-focused README with a user-facing product overview,
@@ -225,7 +245,8 @@ the application version.
 - Explicit batch renaming with no-overwrite checks, best-effort rollback, and session undo.
 - MIT licensing, project documentation, and synthetic core, HTTP, and Qt tests.
 
-[Unreleased]: https://github.com/mbosch81/nomi/compare/f98fe82...HEAD
+[Unreleased]: https://github.com/mbosch81/nomi/compare/v0.11.0...HEAD
+[0.11.0]: https://github.com/mbosch81/nomi/releases/tag/v0.11.0
 [0.10.0]: https://github.com/mbosch81/nomi/compare/e11420b...f98fe82
 [0.9.0]: https://github.com/mbosch81/nomi/compare/91aa37c...e11420b
 [0.8.1]: https://github.com/mbosch81/nomi/compare/1b8dd6c...91aa37c

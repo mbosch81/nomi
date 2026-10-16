@@ -24,11 +24,10 @@ The native OCR helper requires Apple's command-line development tools and Swift
 at build time. FFmpeg is built from source using the local compiler and `make`.
 Those tools are not required by users of the packaged application.
 
-On Linux, OCR uses a separately installed Tesseract and language data. The bundled
-llama.cpp fetcher targets macOS; other platforms can use an installed `llama-server`
-where supported by the runtime lookup. Windows source usage has not been validated
-end to end, and secure folder organization currently requires macOS/Linux. There
-is no supported ready-made Windows or Linux application package.
+On Linux and Windows, OCR can use separately installed Tesseract and language data.
+The Windows preview bundles llama.cpp CPU x64 and the same minimal LGPL-only
+FFmpeg build. Folder organization remains POSIX-only and is disabled in Windows UI.
+No Linux binary package is published.
 
 ## Build the Mac application
 
@@ -51,7 +50,8 @@ with macOS 14. The workflow currently builds on `macos-14`; the checked October 
 
 The bundle is ad hoc signed. It is not Developer ID signed or Apple-notarized.
 The macOS local-network usage declaration is included for configured LAN Ollama
-connections. No automatic GitHub Release upload or in-app updater is configured.
+connections. Public releases are published by the separate release workflow only when explicitly
+dispatched with `publish` enabled and both platform jobs pass. No in-app updater is configured.
 
 Archive with symlinks preserved:
 
@@ -149,12 +149,38 @@ complete matching source archive, and build recipe. FFmpeg 9.0.2 is built with
 GPL, nonfree components, and network protocols disabled; it is invoked separately.
 Keep that license/source material when redistributing the application.
 
-A public release should provide the application ZIP, version and changelog link,
-architecture, minimum macOS version, signing/notarization status, and a checksum.
-The current Actions artifact is temporary and requires a GitHub login. Publishing
-a GitHub Release with a tested asset would remove that download barrier. Update
-[DOWNLOAD.md](DOWNLOAD.md) and the README download links when that distribution
-method becomes available; do not link to a nonexistent “latest release.”
+Public releases contain the Windows single EXE, macOS ARM64 ZIP, MIT license,
+and SHA-256 checksums. The Windows executable is unsigned; the Mac app is not
+Developer ID signed/notarized. End users do not install Python or runtime tools.
+
+## Build Windows and publish a release
+
+Use native Windows x64, Python 3.14, and MSYS2 UCRT64 GCC/make at build time:
+
+```powershell
+python -m pip install -e '.[ocr,build]'
+python -m PyInstaller --noconfirm build_support/Nomi-windows.spec
+```
+
+The result is `dist/Nomi.exe`. The one-file bootloader extracts bundled files to
+a temporary directory at launch. Model weights live in `%LOCALAPPDATA%/Nomi/models`.
+FFmpeg is built with a static MinGW runtime; llama.cpp uses the pinned upstream
+CPU archive, verified against its SHA-256. Helper console windows are hidden.
+
+The [release workflow](../.github/workflows/release.yml) builds both platforms,
+runs the full suite (with documented platform-specific skips), and tests the actual
+packages without external runtime tools on PATH. Windows additionally downloads
+the pinned Qwen model and performs actual inference, rename and undo in the EXE.
+Windows OCR and folder organization are explicitly unavailable in the bundled
+preview; optional Tesseract remains configurable. Windows Server 2022 CI coverage
+is not a substitute for a manual Windows 10/11 desktop acceptance test.
+
+Dispatch **Release packages** with `publish=false` to validate without publication.
+With `publish=true`, both checked assets are combined into a public release whose
+tag is derived from `pyproject.toml` and points to the tested commit. Existing
+release tags fail rather than being overwritten. Update the version, release notes,
+changelog and download links together before dispatching. Never publish models,
+production documents, local preferences, or credentials.
 
 ## Keeping documentation current
 

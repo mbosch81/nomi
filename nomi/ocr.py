@@ -5,6 +5,7 @@ from pathlib import Path
 import re
 import shutil
 import subprocess
+from .process import process_options
 import sys
 from typing import Protocol
 from tempfile import TemporaryDirectory
@@ -67,7 +68,7 @@ def selected_backend(settings: Settings) -> OcrBackend:
 def run_ocr(command: list[str], timeout: float, cancelled, label: str) -> str:
     if cancelled():
         raise AnalysisCancelled()
-    process = subprocess.Popen(command, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+    process = subprocess.Popen(command, stdout=subprocess.PIPE, stderr=subprocess.PIPE, **process_options())
     started = time.monotonic()
     try:
         while True:

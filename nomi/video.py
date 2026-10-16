@@ -3,8 +3,10 @@ from contextlib import contextmanager
 import base64
 import json
 import math
+import os
 from pathlib import Path
 import subprocess
+from .process import process_options
 from tempfile import TemporaryDirectory
 import time
 from .core import AnalysisCancelled
@@ -18,7 +20,7 @@ VIDEO_PROMPT = ('Describe the visible scene in these sampled video frames for a 
 
 
 def runtime_tool(name):
-    path = Path(__file__).resolve().parent / 'bin' / 'ffmpeg' / name
+    path = Path(__file__).resolve().parent / 'bin' / 'ffmpeg' / (name + '.exe' if os.name == 'nt' else name)
     if not path.is_file():
         raise ValueError('Mitgeliefertes FFmpeg fehlt. Vollständiges Nomi-App-Bundle verwenden oder build_support/build_ffmpeg.py ausführen.')
     return path
@@ -27,7 +29,7 @@ def runtime_tool(name):
 def run_tool(args, cancelled, deadline):
     if cancelled():raise AnalysisCancelled()
     process = subprocess.Popen([str(a) for a in args], stdin=subprocess.DEVNULL,
-                               stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+                               stdout=subprocess.PIPE, stderr=subprocess.PIPE, **process_options())
     try:
         while True:
             if cancelled():raise AnalysisCancelled()

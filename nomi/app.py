@@ -381,6 +381,10 @@ class Window(QMainWindow):
         ocr_row.addRow('OCR-Backend', self.ocr_backend)
         ocr_row.addRow('Sprachen', self.ocr_language)
         ocr_row.addRow(self.ocr_command_label, self.ocr_command)
+        if sys.platform == 'win32':
+            notice = QLabel('In dieser Windows-Vorschau ist keine Scan-Texterkennung mitgeliefert. Text-PDFs funktionieren direkt; Bilder über ein Vision-Modell. Optional kann ein vorhandenes Tesseract verwendet werden.')
+            notice.setWordWrap(True)
+            ocr_row.addRow(notice)
         inbox_group = QGroupBox('Überwachter Eingangsordner')
         inbox_layout = QVBoxLayout(inbox_group)
         self.inbox_enabled = QCheckBox('Eingangsordner überwachen')
@@ -451,6 +455,12 @@ class Window(QMainWindow):
                             'Ziel und Quelle müssen auf demselben Laufwerk liegen. Ordner entstehen erst nach Bestätigung. '
                             'Rückgängig stellt die ursprünglichen Speicherorte wieder her. Symbolische Links werden nicht verwendet.')
         organize_hint.setWordWrap(True);organize_form.addRow(organize_hint)
+        if sys.platform == 'win32':
+            self.organize_enabled.setChecked(False)
+            organize_group.setEnabled(False)
+            unavailable = QLabel('Einsortieren ist in der Windows-Vorschau noch nicht verfügbar. Umbenennen und Rückgängig funktionieren im ursprünglichen Ordner.')
+            unavailable.setWordWrap(True)
+            organize_page.addWidget(unavailable)
         organize_page.addWidget(organize_group)
         for section in (general_layout, ai_layout, video_layout, image_layout, ocr_layout, inbox_page, organize_page):
             section.addStretch()

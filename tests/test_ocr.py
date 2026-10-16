@@ -56,6 +56,7 @@ class OcrTests(unittest.TestCase):
         path.chmod(0o700)
         return str(path)
 
+    @unittest.skipIf(sys.platform == 'win32', 'POSIX executable fixture; shared cancellation is tested on Windows')
     def test_cancellation_kills_process_and_cleans_raster(self):
         event = threading.Event()
         processes = []
@@ -76,6 +77,7 @@ class OcrTests(unittest.TestCase):
         self.assertIsNotNone(processes[0][0].poll())
         self.assertFalse(processes[0][1].parent.exists())
 
+    @unittest.skipIf(sys.platform == 'win32', 'POSIX executable fixture')
     def test_timeout_cleans_raster_and_process(self):
         with self.assertRaises(TimeoutError):
             recognize_page(self.pdf, 0, Settings(ocr_command=self.slow_command(), timeout=.15, ocr_backend='tesseract'), lambda: False)
