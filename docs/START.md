@@ -10,7 +10,7 @@ See [download requirements](DOWNLOAD.md) for platform and signing limitations.
 
 ## Choose your language and model
 
-Open the gear button. In the next version, **General → Language** offers German and
+Open the gear button. **General → Language** offers German and
 English. Restart Nomi after changing the language. Recognition languages for OCR
 are configured separately.
 

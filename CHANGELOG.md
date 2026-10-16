@@ -10,6 +10,8 @@ the application version.
 
 ## [Unreleased]
 
+## [0.12.0] - 2026-10-16
+
 ### Added
 
 - Central translation catalog with German and English interface languages and a
@@ -274,7 +276,8 @@ the application version.
 - Explicit batch renaming with no-overwrite checks, best-effort rollback, and session undo.
 - MIT licensing, project documentation, and synthetic core, HTTP, and Qt tests.
 
-[Unreleased]: https://github.com/mbosch81/nomi/compare/v0.11.0...HEAD
+[Unreleased]: https://github.com/mbosch81/nomi/compare/v0.12.0...HEAD
+[0.12.0]: https://github.com/mbosch81/nomi/releases/tag/v0.12.0
 [0.11.0]: https://github.com/mbosch81/nomi/releases/tag/v0.11.0
 [0.10.0]: https://github.com/mbosch81/nomi/compare/e11420b...f98fe82
 [0.9.0]: https://github.com/mbosch81/nomi/compare/91aa37c...e11420b

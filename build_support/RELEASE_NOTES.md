@@ -1,4 +1,4 @@
-# Nomi — every file deserves a name
+# Nomi 0.12.0 — every file deserves a name
 
 ## Downloads
 
@@ -9,7 +9,7 @@
 Model weights download separately from Hugging Face. Qwen is the default document
 model; Mistral is also available. SmolVLM2 handles images and sampled video frames.
 
-## Next version
+## What is new
 
 - Choose German or English in General settings; restart Nomi to apply the language.
 - Central translation catalog for additional languages.
@@ -28,5 +28,8 @@ before confirming changes; undo is available during the current session.
 
 The Windows EXE is unsigned. The Mac app is ad hoc signed, without Apple Developer
 ID signing or notarization. No Intel Mac, Windows ARM or Linux binaries are provided.
-The existing 0.11.0 assets retain their original feature limits; these next-version
-changes require a new package. See the README and changelog for current status.
+Older 0.11.0 downloads retain their original limits. Download 0.12.0 for these
+features. Both platform packages pass automated checks; Windows additionally runs
+actual Qwen inference. A matching development package was checked on Windows 11
+with scanned PDF/image OCR, organization and undo, and an interface language
+switch across restart. Only synthetic files were used.

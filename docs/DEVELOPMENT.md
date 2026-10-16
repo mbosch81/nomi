@@ -179,14 +179,14 @@ The [release workflow](../.github/workflows/release.yml) builds both platforms,
 runs the full suite (with documented platform-specific skips), and tests the actual
 packages without external runtime tools on PATH. Windows additionally downloads
 the pinned Qwen model and performs actual inference, rename and undo in the EXE.
-The next version includes native Windows OCR and local-drive folder organization;
+Version 0.12.0 includes native Windows OCR and local-drive folder organization;
 optional Tesseract remains configurable. Windows Server 2022 CI coverage
 is complemented by a Windows 11 Pro (build 26200) desktop check of the public
 0.11.0 EXE: synthetic TXT/Markdown/CSV folder import and preview, Qwen download
 and inference, cancellation/resume, confirmation before rename, undo with original
 paths and SHA-256 hashes, settings navigation, column resizing, and graceful exit.
 Windows 10, image/video inference and external Ollama were not exercised in that
-desktop check. The 0.11.0 Windows hint incorrectly said “Mac”; the next version uses
+desktop check. The 0.11.0 Windows hint incorrectly said “Mac”; version 0.12.0 uses
 platform-neutral wording.
 
 Dispatch **Release packages** with `publish=false` to validate without publication.
@@ -232,3 +232,11 @@ without weakening these checks.
 On Windows desktops, `--ocr-self-test` additionally checks actual PDF/image OCR
 with available German/English recognizers. The default Windows CI smoke check
 skips OS OCR because server runners may have no recognition language packs.
+
+
+The 0.12.0 Windows EXE was additionally checked on Windows 11 Pro build 26200:
+`--ocr-self-test` exited 0 with actual scanned-PDF, PNG and JPEG recognition using
+Windows OCR, previews, organization, rename and undo all successful. German OCR
+was available; English was absent and correctly reported as unavailable when
+requested alone. The German/English interface setting was exercised across an
+application restart, then restored to German. Only synthetic files were used.

@@ -13,13 +13,19 @@ The Windows EXE extracts runtime files into a temporary folder when launched.
 The Mac ZIP contains Nomi.app. There are currently no Intel Mac, Windows ARM or
 Linux binary packages. Python, llama.cpp and FFmpeg are included; Ollama is optional.
 
-## Published version and upcoming features
+## Version 0.12.0
 
-Version 0.11.0 is the current public release. Its Windows preview supports document
-analysis and visual image/video analysis but does not bundle scan OCR or folder
-organization. The next version adds native Windows OCR, safe local folder
-organization and English/German interface selection. These changes are not part
-of the existing 0.11.0 downloads. See the release notes for verified behavior.
+German and English interface languages are available on both platforms. Windows
+now includes native scan OCR and safe local folder organization with undo. OCR
+uses installed Windows recognition languages; organization requires a local drive
+with hard-link support, such as NTFS. Windows network shares are not supported.
+Older 0.11.0 Windows downloads do not contain these features.
+
+The 0.12.0 Windows implementation was checked on Windows 11 Pro with the actual
+single EXE: scanned PDF and PNG/JPEG OCR, destination-folder organization and undo,
+and the German-to-English language switch after restarting. Automated package
+checks also cover local Qwen inference and confirm that external runtime tools
+are unnecessary. The Mac package is checked with native Apple Vision OCR.
 
 The public 0.11.0 EXE was checked on Windows 11 Pro using synthetic documents:
 import, preview, local model download/inference, cancellation/resume, confirmed

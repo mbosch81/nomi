@@ -14,9 +14,8 @@ session open until you are satisfied with the changes.
 ## Do I need Ollama, FFmpeg or an OCR installation?
 
 The downloadable app includes llama.cpp and FFmpeg. Ollama is optional. macOS OCR
-uses Apple Vision. The next Windows version uses the built-in Windows OCR engine;
-available languages depend on installed Windows language packs. The published
-0.11.0 Windows preview still requires optional Tesseract for scan OCR.
+uses Apple Vision. Windows uses the built-in Windows OCR engine;
+available languages depend on installed Windows language packs. Older 0.11.0 Windows downloads require optional Tesseract for scan OCR.
 
 ## Does my content leave my computer?
 
@@ -37,7 +36,7 @@ analyze every frame. Use a vision-capable model.
 
 ## Can I switch the interface language?
 
-The next version adds German and English under General settings. Restart Nomi to
+German and English are available under General settings. Restart Nomi to
 apply the choice. Template field identifiers, existing filenames and document
 contents stay unchanged. OCR recognition language is configured separately.
 
@@ -45,8 +44,7 @@ contents stay unchanged. OCR recognition language is configured separately.
 
 Source and destination must be on the same filesystem/drive. Nomi rejects
 symbolic links, Windows junctions, occupied destinations and unsafe paths. Windows
-organization uses local drives; network shares are unsupported. The published
-0.11.0 Windows preview does not yet provide organization.
+organization uses local drives; network shares are unsupported. Older 0.11.0 Windows downloads do not provide organization.
 
 ## Where are models stored?
 

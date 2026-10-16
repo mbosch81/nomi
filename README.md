@@ -12,9 +12,9 @@ file names. Review the proposals, edit anything you want, and confirm the change
 Free and open source · Local AI · No cloud account required
 
 > **No installer:** a single EXE for Windows and an app ZIP for Apple Silicon Macs.
-> The published 0.11.0 Windows preview does not include native OCR or folder
-> organization. These features, together with English/German interface selection,
-> are being added for the next release. [Check download requirements](docs/DOWNLOAD.md).
+> Version 0.12.0 includes German/English interfaces, native Windows OCR and safe
+> local folder organization on Windows and macOS.
+> [Check download requirements](docs/DOWNLOAD.md).
 
 ![Add files, review proposals, confirm changes](docs/images/workflow.svg)
 
@@ -50,8 +50,7 @@ configured server. Check any upstream router's privacy settings.
 
 Supported inputs: text and scanned PDFs, DOCX, TXT, Markdown, CSV, PNG, JPEG and
 common video containers. Video analysis samples frames; it does not transcribe
-sound. OCR uses Apple Vision on macOS and, in the upcoming Windows version, the
-Windows OCR engine. Available recognition languages depend on your operating
+sound. OCR uses Apple Vision on macOS and the Windows OCR engine on Windows. Available recognition languages depend on your operating
 system. Tesseract is optional. FFmpeg is included.
 
 ## Learn more

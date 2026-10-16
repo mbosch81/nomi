@@ -5,7 +5,7 @@ locally. Close the settings dialog to return to your files.
 
 ## General
 
-The next version adds **Language**: German or English, applied after restarting
+**Language**: German or English, applied after restarting
 Nomi. This controls interface text, not document contents, model output or OCR
 languages. Naming templates retain their existing field identifiers:
 
@@ -52,7 +52,7 @@ Use `{titel}` for descriptive image names. Original images are never rewritten.
 ## Text recognition
 
 Enable OCR for scanned PDFs and PNG/JPEG scans. Automatic selection uses Apple
-Vision on macOS and native Windows OCR in the upcoming Windows version. No
+Vision on macOS and native Windows OCR on Windows. No
 separate OCR application is required. Windows recognition languages depend on
 installed Windows OCR language packs; missing languages produce a clear error.
 For mixed languages, enter e.g. `deu+eng`. Windows uses available requested
@@ -75,6 +75,6 @@ These folder names remain stable across interface languages.
 
 Files move only after confirming the review dialog. Source and destination must
 be on the same filesystem/drive. Symbolic links and Windows junctions are rejected.
-The upcoming Windows implementation supports local drives; network shares are
+The Windows implementation supports local drives; network shares are
 rejected. Undo restores original locations and removes only unchanged empty
 folders created by the operation.
