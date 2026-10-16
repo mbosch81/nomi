@@ -12,7 +12,7 @@ def run_self_test(app) -> int:
     from .core import Settings, extract_document, make_name
     result = {}
     with TemporaryDirectory(prefix='nomi-self-test-') as folder:
-        root = Path(folder)
+        root = Path(folder).resolve()
         image = Image.new('RGB', (1400, 500), 'white')
         draw = ImageDraw.Draw(image)
         draw.text((60, 80), 'Rechnung Beispiel GmbH', fill='black', font=ImageFont.load_default(size=55))
@@ -83,7 +83,26 @@ def run_self_test(app) -> int:
                 window.revert()
                 assert hashlib.sha256(source.read_bytes()).hexdigest() == before
                 assert not target.exists()
-                result.update(ok=True, video_frames=True, docx=True, inbox_snapshot=True, preview=True, image_ocr=True, ocr=True, ocr_backend=document.ocr_backend, qt=True, rename=True, undo=True)
+                archive=root/'Sorted';archive.mkdir()
+                window.organize_root.setText(str(archive))
+                window.organize_enabled.setChecked(True)
+                window.transliterate_umlauts.setChecked(True)
+                window.name_case.setCurrentIndex(window.name_case.findData('lower'))
+                metadata={'datum':'2026-10-16','absender':'Müller GmbH','dokumenttyp':'Rechnung'}
+                settings=window.settings()
+                window.table.item(0,2).setText(make_name(metadata,source,'{datum}_{absender}_{dokumenttyp}',settings))
+                from .session import file_identity
+                window.remember_analysis(0,dict(identity=file_identity(source),settings=settings,metadata=metadata,frames=[]))
+                window.review_rename()
+                assert window.rename_review.confirm.isEnabled() and source.exists()
+                assert not (archive/'2026').exists()
+                window.rename_review.accept()
+                assert window.paths[0].parent==archive/'2026/rechnung'
+                assert 'mueller' in window.paths[0].name and not source.exists()
+                window.revert()
+                assert hashlib.sha256(source.read_bytes()).hexdigest()==before
+                assert archive.exists() and not (archive/'2026').exists()
+                result.update(ok=True, organize=True, naming_rules=True, video_frames=True, docx=True, inbox_snapshot=True, preview=True, image_ocr=True, ocr=True, ocr_backend=document.ocr_backend, qt=True, rename=True, undo=True)
             except Exception as error:
                 result.update(ok=False, error=type(error).__name__)
             timer.stop()
@@ -116,7 +135,7 @@ def run_llama_self_test(app) -> int:
     check_model(model)
     result = {}
     with TemporaryDirectory(prefix='nomi-local-smoke-') as folder:
-        root = Path(folder)
+        root = Path(folder).resolve()
         source = root / 'scan.png'
         image = Image.new('RGB', (1400, 500), 'white')
         draw = ImageDraw.Draw(image)

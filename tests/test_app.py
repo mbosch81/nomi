@@ -60,7 +60,7 @@ class AppTests(TestCase):
         self.window.show_settings()
         nav = self.window.settings_navigation
         self.assertEqual([nav.item(i).text() for i in range(nav.count())],
-                         ['Allgemein', 'KI', 'Video', 'Bilder', 'Texterkennung', 'Eingangsordner'])
+                         ['Allgemein', 'KI', 'Video', 'Bilder', 'Texterkennung', 'Eingangsordner', 'Einsortieren'])
         nav.setCurrentRow(2)
         self.app.processEvents()
         self.assertTrue(self.window.video_frames.isVisible())

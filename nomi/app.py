@@ -29,6 +29,14 @@ class Worker(QThread):
         self.cancelled = True
         super().requestInterruption()
 
+    def reserve_name(self,path,name,metadata,reserved):
+        directory=path.parent
+        if self.settings.organize_enabled:
+            from .organize import destination_for
+            directory=destination_for(path,name,metadata,self.settings).parent
+        return available_name(path,name,reserved.setdefault(directory,set()),self.settings,
+                              directory if self.settings.organize_enabled else None)
+
     def run(self):
         backend = self.backend if self.backend is not None else OllamaBackend()
         if self.items is None:
@@ -46,7 +54,7 @@ class Worker(QThread):
                 identity = file_identity(path)
                 cached = self.cache.get(path, self.settings) if self.cache is not None and not self.force else None
                 if cached is not None:
-                    name = available_name(path, cached['name'], reserved.setdefault(path.parent, set()), self.settings)
+                    name = self.reserve_name(path,cached['name'],cached.get('metadata'),reserved)
                     detail = dict(cached, name=name)
                     self.cache.put(identity, self.settings, detail)
                     self.details.emit(row, detail)
@@ -74,7 +82,7 @@ class Worker(QThread):
                 if self.isInterruptionRequested():break
                 from .routing import naming_template
                 proposed = make_name(metadata, path, naming_template(self.settings, path), self.settings)
-                name = available_name(path, proposed, reserved.setdefault(path.parent, set()), self.settings)
+                name = self.reserve_name(path,proposed,metadata,reserved)
                 if name == path.name:
                     status = 'Unverändert'
                 elif path.with_name(name).exists():
@@ -96,7 +104,7 @@ class Worker(QThread):
                     raise ValueError('Datei wurde während der Analyse verändert. Bitte erneut analysieren.')
                 from string import Formatter
                 missing = [field for _,field,_,_ in Formatter().parse(naming_template(self.settings,path)) if field and not metadata.get(field)]
-                detail = dict(name=name, status=status, frames=frames, identity=identity, settings=self.settings, missing_fields=missing)
+                detail = dict(name=name, status=status, frames=frames, identity=identity, settings=self.settings, missing_fields=missing, metadata={key:metadata.get(key,'') for key in ('datum','absender','empfaenger','dokumenttyp','titel','kennung')})
                 if self.cache is not None:self.cache.put(identity, self.settings, detail)
                 self.details.emit(row, detail)
                 self.result.emit(row, name, status)
@@ -221,6 +229,7 @@ class Window(QMainWindow):
         image_layout = category('Bilder')
         ocr_layout = category('Texterkennung')
         inbox_page = category('Eingangsordner')
+        organize_page = category('Einsortieren')
         self.settings_navigation.currentRowChanged.connect(self.settings_stack.setCurrentIndex)
         self.settings_navigation.setCurrentRow(0)
         backend_group = QGroupBox('Analyse und Modelle')
@@ -422,7 +431,28 @@ class Window(QMainWindow):
         image_hint.setWordWrap(True)
         image_form.addRow(image_hint)
         image_layout.addWidget(image_group)
-        for section in (general_layout, ai_layout, video_layout, image_layout, ocr_layout, inbox_page):
+        organize_group=QGroupBox('Optional nach Analyse einsortieren')
+        organize_form=QFormLayout(organize_group)
+        self.organize_enabled=QCheckBox('Beim Umbenennen in Zielordner einsortieren')
+        self.organize_enabled.setChecked(str(self.store.value('organize_enabled','false')).lower() in ('true','1'))
+        self.organize_root=QLineEdit(str(self.store.value('organize_root','')))
+        self.organize_choose=QPushButton('Zielordner wählen')
+        root_row=QHBoxLayout();root_row.addWidget(self.organize_root,1);root_row.addWidget(self.organize_choose)
+        self.folder_template=QLineEdit(str(self.store.value('folder_template','{jahr}/{dokumenttyp}')))
+        self.folder_template.setPlaceholderText('Leer = direkt im Zielordner')
+        self.organize_example=QLabel();self.organize_example.setWordWrap(True)
+        self.organize_example.setTextFormat(Qt.TextFormat.PlainText)
+        organize_form.addRow(self.organize_enabled)
+        organize_form.addRow('Zielordner',root_row)
+        organize_form.addRow('Unterordner-Schema',self.folder_template)
+        organize_form.addRow('Beispiel',self.organize_example)
+        organize_hint=QLabel('Felder: {jahr}, {monat}, {datum}, {dokumenttyp}, {absender}, {titel}, {empfaenger}, {kennung}. '
+                            'Fehlendes Datum → Ohne_Datum; andere fehlende Felder → Unsortiert. '
+                            'Ziel und Quelle müssen auf demselben Laufwerk liegen. Ordner entstehen erst nach Bestätigung. '
+                            'Rückgängig stellt die ursprünglichen Speicherorte wieder her. Symbolische Links werden nicht verwendet.')
+        organize_hint.setWordWrap(True);organize_form.addRow(organize_hint)
+        organize_page.addWidget(organize_group)
+        for section in (general_layout, ai_layout, video_layout, image_layout, ocr_layout, inbox_page, organize_page):
             section.addStretch()
         settings_outer.addWidget(QLabel('Änderungen werden direkt übernommen und beim Schließen gespeichert.'))
         buttons = QDialogButtonBox(QDialogButtonBox.StandardButton.Close)
@@ -495,7 +525,7 @@ class Window(QMainWindow):
         self.undo_button.clicked.connect(self.revert)
         self.all_button.clicked.connect(lambda: self.select_all(True))
         self.none_button.clicked.connect(lambda: self.select_all(False))
-        self.busy_widgets = [self.files_button, self.folder_button, self.recursive, self.clear_button, self.url, self.model, self.connect_button, self.timeout, self.template, self.all_button, self.none_button, self.analyze_button, self.reanalyze_button, self.rename_button, self.undo_button, self.ocr_enabled, self.ocr_language, self.ocr_command, self.ocr_backend, self.engine, self.gguf, self.gguf_button, self.download_button, self.local_load_button, self.autoload, self.download_choice, self.inbox_enabled, self.inbox_folder, self.inbox_choose, self.inbox_recursive, self.projector, self.projector_button, self.video_frames, self.video_timeout, self.image_analysis, self.auto_models, self.text_model, self.image_template, self.video_template, self.preset, self.apply_preset, self.name_separator, self.name_case, self.max_name_length, self.transliterate_umlauts, self.windows_compatible]
+        self.busy_widgets = [self.files_button, self.folder_button, self.recursive, self.clear_button, self.url, self.model, self.connect_button, self.timeout, self.template, self.all_button, self.none_button, self.analyze_button, self.reanalyze_button, self.rename_button, self.undo_button, self.ocr_enabled, self.ocr_language, self.ocr_command, self.ocr_backend, self.engine, self.gguf, self.gguf_button, self.download_button, self.local_load_button, self.autoload, self.download_choice, self.inbox_enabled, self.inbox_folder, self.inbox_choose, self.inbox_recursive, self.projector, self.projector_button, self.video_frames, self.video_timeout, self.image_analysis, self.auto_models, self.text_model, self.image_template, self.video_template, self.preset, self.apply_preset, self.name_separator, self.name_case, self.max_name_length, self.transliterate_umlauts, self.windows_compatible, self.organize_enabled, self.organize_root, self.organize_choose, self.folder_template]
 
         self.auto_models.toggled.connect(self.refresh_analysis_enabled)
         self.apply_preset.clicked.connect(self.apply_naming_preset)
@@ -504,6 +534,11 @@ class Window(QMainWindow):
         self.max_name_length.valueChanged.connect(self.update_naming_example)
         self.transliterate_umlauts.toggled.connect(self.update_naming_example)
         self.windows_compatible.toggled.connect(self.update_naming_example)
+        self.organize_choose.clicked.connect(self.choose_organize_root)
+        self.organize_enabled.toggled.connect(self.update_naming_example)
+        self.organize_enabled.toggled.connect(self.check_conflicts)
+        self.organize_root.textChanged.connect(self.update_naming_example)
+        self.folder_template.textChanged.connect(self.update_naming_example)
         self.update_naming_example()
         self.engine.currentIndexChanged.connect(self.engine_changed)
         self.gguf.textChanged.connect(self.model_path_changed)
@@ -668,6 +703,10 @@ class Window(QMainWindow):
         self.ocr_command.setVisible(show_command)
         self.ocr_command_label.setVisible(show_command)
 
+    def choose_organize_root(self):
+        folder=QFileDialog.getExistingDirectory(self,'Zielordner für Einsortieren wählen')
+        if folder:self.organize_root.setText(folder)
+
     def apply_naming_preset(self):
         from .naming import PRESETS
         kind,template=PRESETS[self.preset.currentText()]
@@ -682,6 +721,11 @@ class Window(QMainWindow):
                       for label,path in [('Dokument',Path('beispiel.pdf')),('Bild',Path('beispiel.jpg')),('Video',Path('beispiel.mp4'))]]
             self.naming_example.setText('\n'.join(examples))
         except ValueError as error:self.naming_example.setText('Vorlage prüfen: '+str(error))
+        try:
+            from .organize import destination_for
+            sample=replace(settings,organize_enabled=True,organize_root=settings.organize_root or '/Zielordner')
+            self.organize_example.setText(str(destination_for(Path('beispiel.pdf'),make_name(EXAMPLE,Path('beispiel.pdf'),settings.template,settings),EXAMPLE,sample)))
+        except ValueError as error:self.organize_example.setText('Schema prüfen: '+str(error))
 
     def settings(self):
         settings = Settings(url=self.url.text().strip(), model=self.model.currentText().strip(),
@@ -696,7 +740,8 @@ class Window(QMainWindow):
                             video_template=self.video_template.text().strip(),
                             name_separator=self.name_separator.currentData(),name_case=self.name_case.currentData(),
                             max_name_length=self.max_name_length.value(),transliterate_umlauts=self.transliterate_umlauts.isChecked(),
-                            windows_compatible=self.windows_compatible.isChecked())
+                            windows_compatible=self.windows_compatible.isChecked(), organize_enabled=self.organize_enabled.isChecked(),
+                            organize_root=self.organize_root.text().strip(),folder_template=self.folder_template.text().strip())
         for key, value in asdict(settings).items():
             self.store.setValue(key, value)
         return settings
@@ -782,6 +827,8 @@ class Window(QMainWindow):
     def clear(self):
         self.preview.show_path(None)
         self.paths.clear()
+        self.analysis_details.clear()
+        self.analysis_identities.clear()
         self.table.setRowCount(0)
         self.status.setText('Liste geleert. Die Dateien bleiben erhalten.')
 
@@ -812,7 +859,9 @@ class Window(QMainWindow):
             if not name:
                 continue
             try:
-                target = validate_name(path, name)
+                settings=self.settings()
+                from .organize import destination_for
+                target = destination_for(path,name,self.analysis_details.get(path,{}).get('metadata'),settings)
                 key = str(target).casefold()
                 targets.setdefault(key, []).append(row)
                 if target != path and (target.exists() or target.is_symlink()):
@@ -897,8 +946,12 @@ class Window(QMainWindow):
         self.analysis_identities[path] = detail['identity']
         self.analysis_details.pop(path, None)
         self.analysis_details[path] = detail
-        while self.analysis_details and (len(self.analysis_details)>64 or sum(sum(len(encoded) for _,encoded in entry.get('frames', [])) for entry in self.analysis_details.values())>32*1024*1024):
-            del self.analysis_details[next(iter(self.analysis_details))]
+        # Keep metadata for every visible row; only thumbnail payloads are bounded.
+        while sum(bool(entry.get('frames')) for entry in self.analysis_details.values())>64 or sum(sum(len(encoded) for _,encoded in entry.get('frames', [])) for entry in self.analysis_details.values())>32*1024*1024:
+            for entry in self.analysis_details.values():
+                if entry.get('frames'):
+                    entry['frames']=[]
+                    break
         if row == self.table.currentRow():self.preview.set_analysis_frames(detail.get('frames', []))
 
     def result(self, row, name, status):
@@ -957,13 +1010,16 @@ class Window(QMainWindow):
         if not items:
             self.error('Bitte mindestens eine Datei auswählen.')
             return
-        rows=review_plan(items,self.analysis_identities)
+        operation_settings=self.settings()
+        metadata={path:detail.get('metadata') for path,detail in self.analysis_details.items()}
+        rows=review_plan(items,self.analysis_identities,operation_settings,metadata)
+        destinations={row['path']:row['target'] for row in rows}
         self.rename_review = RenameReview(rows,self)
         approved=tuple((row,path,self.table.item(row,2).text()) for row,path in self.selected())
-        self.rename_review.accepted.connect(lambda: self.rename(approved))
+        self.rename_review.accepted.connect(lambda: self.rename(approved,destinations,operation_settings))
         self.rename_review.open()
 
-    def rename(self, approved=None):
+    def rename(self, approved=None, destinations=None, operation_settings=None):
         if self.busy():return
         if approved is not None:
             if any(row >= len(self.paths) or self.paths[row] != path or self.table.item(row,2).text() != name for row,path,name in approved):
@@ -980,13 +1036,19 @@ class Window(QMainWindow):
             self.error('Für jede ausgewählte Datei muss ein neuer Name vorliegen. Dateien ohne Vorschlag bitte abwählen.')
             return
         from .rename_review import review_plan
-        problems=[problem for row in review_plan([(path,name,'') for path,name in items],self.analysis_identities) for problem in row['problems']]
+        operation_settings=operation_settings or self.settings()
+        metadata={path:detail.get('metadata') for path,detail in self.analysis_details.items()}
+        rows=review_plan([(path,name,'') for path,name in items],self.analysis_identities,operation_settings,metadata,destinations)
+        problems=[problem for row in rows for problem in row['problems']]
         if problems:
             self.error('; '.join(dict.fromkeys(problems)))
             return
         failure = None
         try:
-            records = rename_batch(items)
+            if operation_settings.organize_enabled:
+                from .organize import organize_batch
+                records=organize_batch([(row['path'],row['target']) for row in rows],Path(operation_settings.organize_root).expanduser())
+            else:records = rename_batch(items)
         except RenameError as error:
             failure = str(error)
             records = error.records
@@ -1001,7 +1063,7 @@ class Window(QMainWindow):
             self.paths[row] = mapping.get(path, path)
             self.table.item(row, 1).setText(self.paths[row].name)
             self.table.item(row, 1).setToolTip(str(self.paths[row]))
-            self.table.item(row, 3).setText('Umbenannt' if path in mapping else 'Unverändert')
+            self.table.item(row, 3).setText(('Einsortiert und umbenannt' if operation_settings.organize_enabled else 'Umbenannt') if path in mapping else 'Unverändert')
         for record in records:self.remap_analysis(record.before, record.after)
         self.update_preview()
         self.undo_button.setEnabled(bool(self.history))

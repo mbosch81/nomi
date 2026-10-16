@@ -29,7 +29,9 @@ def format_name(value, source, settings):
             value=value.replace(old,new)
     if settings.name_case=='lower':value=value.lower()
     elif settings.name_case=='upper':value=value.upper()
-    if settings.windows_compatible and value.split('.')[0].upper() in RESERVED:value='Datei'+separator+value
+    if settings.windows_compatible and value.split('.')[0].upper() in RESERVED:
+        prefix='DATEI' if settings.name_case=='upper' else 'datei' if settings.name_case=='lower' else 'Datei'
+        value=prefix+separator+value
     suffix=Path(source).suffix
     limit=settings.max_name_length-len(suffix.encode('utf-8'))
     while len(value)>limit or len(value.encode('utf-8'))>limit:value=value[:-1]

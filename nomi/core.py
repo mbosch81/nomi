@@ -39,6 +39,9 @@ class Settings:
     name_case: str = 'preserve'
     transliterate_umlauts: bool = False
     windows_compatible: bool = True
+    organize_enabled: bool = False
+    organize_root: str = ''
+    folder_template: str = '{jahr}/{dokumenttyp}'
     analysis_hint: str = ''
     auto_models: bool = False
     text_model: str = 'qwen'
@@ -140,10 +143,18 @@ def make_name(data: dict, source: Path, template: str, settings=None) -> str:
     return safe_stem(template.format(**values)) + source.suffix
 
 
-def available_name(source: Path, name: str, reserved: set[str], settings=None) -> str:
+def available_name(source: Path, name: str, reserved: set[str], settings=None, directory=None) -> str:
     """Generate a reviewable suffix; the rename operation still checks atomically."""
     validate_name(source, name)
-    occupied = {p.name.casefold() for p in source.parent.iterdir() if p != source}
+    if directory is None:
+        occupied = {p.name.casefold() for p in source.parent.iterdir() if p != source}
+    else:
+        from .organize import open_directory
+        try:fd=open_directory(directory)
+        except FileNotFoundError:occupied=set()
+        else:
+            try:occupied={name.casefold() for name in os.listdir(fd) if not (Path(directory)==source.parent and name==source.name)}
+            finally:os.close(fd)
     occupied.update(reserved)
     candidate = name
     number = 2
@@ -319,6 +330,8 @@ class RenameRecord:
     before: Path
     after: Path
     identity: tuple[int, int, int, int]
+    organized: bool = False
+    created_dirs: tuple = ()
 
 def identity(path: Path):
     stat = path.stat()
@@ -388,14 +401,22 @@ def undo(records: list[RenameRecord]):
     completed = []
     try:
         for record in reversed(records):
-            move_no_replace(record.after, record.before)
+            if record.organized:
+                from .organize import secure_move
+                secure_move(record.after,record.before)
+            else:move_no_replace(record.after, record.before)
             completed.append(record)
     except Exception as cause:
         restored = []
         for record in reversed(completed):
             try:
-                move_no_replace(record.before, record.after)
+                if record.organized:
+                    from .organize import secure_move
+                    secure_move(record.before,record.after)
+                else:move_no_replace(record.before, record.after)
             except Exception:
                 restored.append(record)
         remaining = [r for r in records if r not in restored]
         raise RenameError(cause, remaining) from cause
+    from .organize import cleanup_created
+    cleanup_created([directory for record in records for directory in record.created_dirs])
