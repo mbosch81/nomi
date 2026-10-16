@@ -99,10 +99,10 @@ class PreviewTests(unittest.TestCase):
         path = self.root/'first.txt';path.write_text('first')
         other = self.root/'second.txt';other.write_text('second')
         actual = load_preview
-        def slow(source, page):
+        def slow(source, page, cancelled=lambda:False):
             if source == path:
                 began.set();release.wait(3)
-            return actual(source, page)
+            return actual(source, page, cancelled)
         with patch('nomi.preview.load_preview', side_effect=slow):
             self.panel.show_path(path)
             self.assertTrue(began.wait(2))

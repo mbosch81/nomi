@@ -15,6 +15,7 @@ if arguments.count != 3 { fail(2) }
 let request = VNRecognizeTextRequest()
 request.recognitionLevel = .accurate
 request.revision = VNRecognizeTextRequestRevision3
+request.usesCPUOnly = true
 // A stable OCR revision and explicit CPU execution avoid first-use GPU/ANE
 // initialization stalls in a short-lived, cancellable command-line process.
 if let cpu = MLComputeDevice.allComputeDevices.first(where: {

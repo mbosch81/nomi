@@ -6,10 +6,18 @@ from PySide6.QtWidgets import (QWidget, QVBoxLayout, QHBoxLayout, QLabel, QPushB
                               QPlainTextEdit, QScrollArea, QStackedWidget, QComboBox, QLineEdit)
 
 
-def load_preview(path: Path, page: int = 0) -> dict:
+def load_preview(path: Path, page: int = 0, cancelled=lambda:False) -> dict:
     if path.is_symlink() or not path.is_file():
         raise ValueError('Datei nicht mehr vorhanden oder symbolischer Link.')
     suffix = path.suffix.lower()
+    from .core import VIDEO_FORMATS
+    if suffix in VIDEO_FORMATS:
+        import base64
+        from .video import sample_frames
+        with sample_frames(path, 1, timeout=15, cancelled=cancelled) as frames:
+            image = QImage.fromData(base64.b64decode(frames[0][1]), 'JPEG')
+        if image.isNull():raise ValueError('Video-Vorschau kann nicht angezeigt werden.')
+        return {'image': image, 'page': 0, 'pages': 1, 'video': True}
     if suffix == '.pdf':
         from PySide6.QtPdf import QPdfDocument
         if path.stat().st_size > 200 * 1024 * 1024:
@@ -70,14 +78,19 @@ class PreviewTask(QRunnable):
         super().__init__()
         self.request, self.path, self.page = request, path, page
         self.signals = PreviewSignals()
+        from threading import Event
+        self.cancelled = Event()
 
     def run(self):
         try:
-            data = load_preview(self.path, self.page)
-            self.signals.ready.emit(self.request, data, '')
-        except Exception as error:
-            message = str(error) if isinstance(error, ValueError) else 'Datei kann nicht angezeigt werden.'
-            self.signals.ready.emit(self.request, None, message)
+            data = load_preview(self.path, self.page, self.cancelled.is_set)
+            error = ''
+        except Exception as failure:
+            message = str(failure) if isinstance(failure, ValueError) else 'Datei kann nicht angezeigt werden.'
+            data, error = None, message
+        if not self.cancelled.is_set():
+            try:self.signals.ready.emit(self.request, data, error)
+            except RuntimeError:pass  # The owning window may have closed during loading.
 
 
 class PreviewPanel(QWidget):
@@ -185,6 +198,7 @@ class PreviewPanel(QWidget):
                 self.stack.setCurrentWidget(self.message)
             else:
                 self.page, self.pages = data['page'], data['pages']
+                if data.get('video'):self.note.setText('Video-Stichprobe · einzelnes Vorschaubild · ohne Ton')
                 if 'text' in data:
                     self.text.setPlainText(data['text'])
                     self.stack.setCurrentWidget(self.text)
@@ -198,6 +212,11 @@ class PreviewPanel(QWidget):
                     self._fit_image()
         self._start_pending()
         self._navigation()
+
+    def shutdown(self):
+        self._request += 1
+        self._pending = None
+        if self._active is not None:self._active.cancelled.set()
 
     def turn(self, step):
         if self.path and self._active is None and 0 <= self.page + step < self.pages:

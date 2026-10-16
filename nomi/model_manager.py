@@ -17,11 +17,11 @@ def installed_models(extra=None, active=None):
     return sorted(paths)
 
 
-def trash_model(path: Path, active=None):
+def trash_model(path: Path, active=None, projector=None):
     path = path.absolute()
     if path.is_symlink() or path.parent.resolve() != model_directory().resolve() or path.suffix.lower() != '.gguf':
         raise ValueError('Nur Modelle im Nomi-Modellordner können entfernt werden.')
-    if active and path.resolve() == Path(active).resolve():
+    if any(location and path.resolve() == Path(location).resolve() for location in (active, projector)):
         raise ValueError('Das geladene Modell muss zuerst entladen werden.')
     success = QFile.moveToTrash(str(path))
     if not success:
@@ -66,7 +66,9 @@ class ModelManager(QDialog):
                 size = path.stat().st_size
             except OSError:
                 size = 0
-            status = 'Geladen' if active and path == Path(active) else 'Installiert'
+            projector = getattr(self.window.local_engine, 'projector', None)
+            status = 'Geladen' if path in (active, projector) else 'Installiert'
+            if path.name.startswith('mmproj-'):status += ' · Vision-Projektor'
             if path.parent.resolve() != model_directory().resolve():
                 status += ' · externer Speicherort'
             item = QListWidgetItem(f'{path.name}\n{size/1_000_000_000:.2f} GB · {status}')
@@ -84,14 +86,14 @@ class ModelManager(QDialog):
         busy = self.window.busy()
         path = self.selected()
         active = self.window.local_engine.model
-        self.use.setEnabled(not busy and path is not None)
+        self.use.setEnabled(not busy and path is not None and not path.name.startswith('mmproj-'))
         self.unload.setEnabled(not busy and active is not None)
-        self.remove.setEnabled(not busy and path is not None and path != active and
+        self.remove.setEnabled(not busy and path is not None and path not in (active, getattr(self.window.local_engine, 'projector', None)) and
                                path.parent.resolve() == model_directory().resolve())
 
     def load_selected(self):
         path = self.selected()
-        if path and not self.window.busy():
+        if path and not path.name.startswith('mmproj-') and not self.window.busy():
             self.window.engine.setCurrentIndex(self.window.engine.findData('llama'))
             self.window.gguf.setText(str(path))
             if not self.window.busy():
@@ -112,7 +114,7 @@ class ModelManager(QDialog):
         answer = QMessageBox.question(self, 'Modell entfernen', f'{path.name} in den Papierkorb verschieben?')
         if answer != QMessageBox.StandardButton.Yes:return
         try:
-            trash_model(path, self.window.local_engine.model)
+            trash_model(path, self.window.local_engine.model, getattr(self.window.local_engine, 'projector', None))
         except (ValueError, OSError) as error:
             QMessageBox.warning(self, 'Modell entfernen', str(error))
         self.refresh()

@@ -11,15 +11,18 @@ metadata = copy_metadata('nomi-renamer')
 # Always compile from tracked source, never reuse a developer's stale binary.
 vision_helper = runpy.run_path(str(root / 'build_support' / 'build_vision.py'))['build']()
 llama_directory = runpy.run_path(str(root / 'build_support' / 'fetch_llama.py'))['fetch']()
+ffmpeg_directory = runpy.run_path(str(root / 'build_support' / 'build_ffmpeg.py'))['build']()
+ffmpeg_binaries = [(str(ffmpeg_directory / name), 'nomi/bin/ffmpeg') for name in ('ffmpeg', 'ffprobe')]
+ffmpeg_data = [(str(ffmpeg_directory / name), 'third_party/ffmpeg') for name in ('COPYING.LGPLv2.1', 'build.json', 'ffmpeg-9.0.2.tar.xz')]
 llama_binaries = [(str(p), 'nomi/bin/llama') for p in llama_directory.iterdir()
                   if p.name == 'llama-server' or p.name.endswith('.dylib')]
 a = Analysis(
     [str(root / 'build_support' / 'launcher.py')],
     pathex=[str(root)],
-    binaries=[(str(vision_helper), 'nomi/bin')] + llama_binaries,
+    binaries=[(str(vision_helper), 'nomi/bin')] + llama_binaries + ffmpeg_binaries,
     datas=[(str(root / 'LICENSE'), '.'), (str(root / 'README.md'), '.')]
           + [(str(llama_directory / 'LICENSE'), 'third_party/llama.cpp')]
-          + metadata + collect_data_files('pypdfium2_raw'),
+          + ffmpeg_data + metadata + collect_data_files('pypdfium2_raw'),
     hiddenimports=['PIL.PdfImagePlugin', 'nomi.diagnostics'],
     excludes=['PySide6.QtWebEngineCore', 'PySide6.QtWebEngineWidgets', 'tkinter'],
 )

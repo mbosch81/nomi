@@ -54,6 +54,20 @@ class AppTests(TestCase):
             time.sleep(.01)  # Release the GIL while the worker imports/runs PDF libraries.
         self.assertFalse(self.window.busy())
 
+    def test_settings_categories_and_video_configuration(self):
+        self.window.show_settings()
+        nav = self.window.settings_navigation
+        self.assertEqual([nav.item(i).text() for i in range(nav.count())],
+                         ['Allgemein', 'KI', 'Video', 'Texterkennung', 'Eingangsordner'])
+        nav.setCurrentRow(2)
+        self.app.processEvents()
+        self.assertTrue(self.window.video_frames.isVisible())
+        self.assertFalse(self.window.template.isVisible())
+        self.window.video_frames.setValue(9)
+        self.assertEqual(self.window.settings().video_frames, 9)
+        self.window.video_frames.setValue(99)
+        self.assertEqual(self.window.settings().video_frames, 12)
+
     def test_settings_menu_moves_controls_and_persists_changes(self):
         self.assertFalse(self.window.settings_dialog.isVisible())
         for widget in (self.window.engine, self.window.url, self.window.model,
@@ -234,7 +248,7 @@ class AppTests(TestCase):
         self.assertTrue(self.window.rename_button.isEnabled())
         self.assertIn('abgebrochen', self.window.status.text())
         self.assertTrue(self.a.exists())
-        self.assertEqual(sum('abgebrochen' in self.window.table.item(r, 3).text() for r in range(3)), 2)
+        self.assertEqual(sum('abgebrochen' in self.window.table.item(r, 3).text() for r in range(3)), 3)
 
     def test_drag_drop_import(self):
         mime = QMimeData()

@@ -4,13 +4,13 @@ from pathlib import Path
 from dataclasses import asdict
 from PySide6.QtCore import Qt, QThread, Signal, QSettings, QTimer
 from PySide6.QtGui import QAction, QKeySequence
-from PySide6.QtWidgets import (QApplication, QMainWindow, QWidget, QVBoxLayout, QHBoxLayout, QLabel, QPushButton, QTableWidget, QTableWidgetItem, QHeaderView, QFileDialog, QCheckBox, QLineEdit, QComboBox, QSpinBox, QProgressBar, QMessageBox, QDialog, QDialogButtonBox, QGroupBox, QFormLayout, QSplitter, QScrollArea)
+from PySide6.QtWidgets import (QApplication, QMainWindow, QWidget, QVBoxLayout, QHBoxLayout, QLabel, QPushButton, QTableWidget, QTableWidgetItem, QHeaderView, QFileDialog, QCheckBox, QLineEdit, QComboBox, QSpinBox, QProgressBar, QMessageBox, QDialog, QDialogButtonBox, QGroupBox, QFormLayout, QSplitter, QScrollArea, QListWidget, QStackedWidget)
 from .preview import PreviewPanel
 from .model_manager import ModelManager
 from .inbox import InboxWatcher
 from .llama_backend import LocalEngine
-from .local_model import default_model_path, download_model, model_catalog, model_directory
-from .core import Settings, OllamaBackend, collect, make_name, rename_batch, undo, validate_template, RenameError, extract_document, AnalysisCancelled, available_name, validate_name
+from .local_model import default_model_path, download_model_package, model_catalog, model_directory
+from .core import Settings, OllamaBackend, collect, make_name, rename_batch, undo, validate_template, RenameError, extract_document, AnalysisCancelled, available_name, validate_name, VIDEO_FORMATS
 
 class Worker(QThread):
     result = Signal(int, str, str)
@@ -38,10 +38,17 @@ class Worker(QThread):
             if self.isInterruptionRequested():
                 break
             try:
-                document = extract_document(path, settings=self.settings, cancelled=self.isInterruptionRequested)
-                if self.isInterruptionRequested():
-                    break
-                metadata = backend.suggest(document.text, self.settings)
+                is_video = path.suffix.lower() in VIDEO_FORMATS
+                if is_video:
+                    from .video import suggest_video
+                    from .core import Extraction
+                    metadata = suggest_video(backend, path, self.settings, self.isInterruptionRequested)
+                    document = Extraction('')
+                else:
+                    document = extract_document(path, settings=self.settings, cancelled=self.isInterruptionRequested)
+                    if self.isInterruptionRequested():break
+                    metadata = backend.suggest(document.text, self.settings)
+                if self.isInterruptionRequested():break
                 proposed = make_name(metadata, path, self.settings.template)
                 name = available_name(path, proposed, reserved.setdefault(path.parent, set()))
                 if name == path.name:
@@ -54,6 +61,8 @@ class Worker(QThread):
                     status += ' · Konflikt durch Nummernzusatz vermieden'
                 for warning in metadata.get('_warnings', []):
                     status += ' · ' + warning
+                if is_video:
+                    status += f' · Video-Stichprobe ({self.settings.video_frames} Frames)'
                 if document.used_ocr:
                     status += ' · OCR' + (f' ({document.ocr_backend})' if document.ocr_backend else '')
                 if document.truncated:
@@ -81,9 +90,14 @@ class EngineWorker(QThread):
 
     def run(self):
         try:
-            path = (download_model('qwen' if self.download is True else self.download, cancelled=self.isInterruptionRequested, progress=self.progress.emit)
-                    if self.download else Path(self.settings.llama_model))
-            backend = self.engine.start(path, self.isInterruptionRequested, self.progress.emit)
+            if self.download:
+                path, projector = download_model_package('qwen' if self.download is True else self.download,
+                    cancelled=self.isInterruptionRequested, progress=self.progress.emit)
+            else:
+                path = Path(self.settings.llama_model)
+                projector = Path(self.settings.llama_projector) if self.settings.llama_projector else None
+            options = {'projector': projector} if projector else {}
+            backend = self.engine.start(path, self.isInterruptionRequested, self.progress.emit, **options)
             if self.isInterruptionRequested():
                 raise AnalysisCancelled()
             self.ready.emit(backend, str(path))
@@ -129,7 +143,7 @@ class Window(QMainWindow):
         header.addWidget(self.settings_button)
         layout.addLayout(header)
         layout.addWidget(QLabel('Jede Datei verdient einen Namen.'))
-        self.drop_hint = QLabel('Dateien oder Ordner hierher ziehen · PDF, DOCX, PNG, JPEG, TXT, Markdown und CSV')
+        self.drop_hint = QLabel('Dateien oder Ordner hierher ziehen · PDF, DOCX, Bilder, Videos, TXT, Markdown und CSV')
         self.drop_hint.setStyleSheet('border: 2px dashed #55618a; border-radius: 12px; padding: 22px; color: #bec8e5;')
         self.drop_hint.setAlignment(Qt.AlignmentFlag.AlignCenter)
         layout.addWidget(self.drop_hint)
@@ -146,17 +160,35 @@ class Window(QMainWindow):
         self.settings_dialog.setWindowTitle('Nomi · Einstellungen')
         self.settings_dialog.resize(760, 650)
         settings_outer = QVBoxLayout(self.settings_dialog)
-        settings_scroll = QScrollArea()
-        settings_scroll.setWidgetResizable(True)
-        settings_content = QWidget()
-        settings_scroll.setWidget(settings_content)
-        settings_outer.addWidget(settings_scroll)
-        settings_layout = QVBoxLayout(settings_content)
-        settings_layout.setContentsMargins(24, 24, 24, 24)
-        settings_layout.setSpacing(16)
+        settings_body = QHBoxLayout()
+        self.settings_navigation = QListWidget()
+        self.settings_navigation.setAccessibleName('Einstellungsbereiche')
+        self.settings_navigation.setFixedWidth(170)
+        self.settings_stack = QStackedWidget()
+        settings_body.addWidget(self.settings_navigation)
+        settings_body.addWidget(self.settings_stack, 1)
+        settings_outer.addLayout(settings_body, 1)
+        def category(title):
+            self.settings_navigation.addItem(title)
+            scroll = QScrollArea()
+            scroll.setWidgetResizable(True)
+            content = QWidget()
+            section = QVBoxLayout(content)
+            section.setContentsMargins(16, 12, 16, 12)
+            section.setSpacing(16)
+            scroll.setWidget(content)
+            self.settings_stack.addWidget(scroll)
+            return section
+        general_layout = category('Allgemein')
+        ai_layout = category('KI')
+        video_layout = category('Video')
+        ocr_layout = category('Texterkennung')
+        inbox_page = category('Eingangsordner')
+        self.settings_navigation.currentRowChanged.connect(self.settings_stack.setCurrentIndex)
+        self.settings_navigation.setCurrentRow(0)
         backend_group = QGroupBox('Analyse und Modelle')
         backend_row = QFormLayout(backend_group)
-        settings_layout.addWidget(backend_group)
+        ai_layout.addWidget(backend_group)
         settings_menu = self.menuBar().addMenu('Einstellungen')
         self.settings_action = QAction('Einstellungen …', self)
         self.settings_action.setShortcut(QKeySequence.StandardKey.Preferences)
@@ -191,7 +223,7 @@ class Window(QMainWindow):
         backend_row.addRow('Zeitlimit pro Anfrage', self.timeout)
         self.local_group = QGroupBox('Lokales GGUF-Modell')
         local_row = QVBoxLayout(self.local_group)
-        settings_layout.addWidget(self.local_group)
+        ai_layout.addWidget(self.local_group)
         self.gguf = QLineEdit(str(self.store.value('llama_model', str(default_model_path()))))
         self.gguf.setPlaceholderText('GGUF-Modell auswählen')
         self.gguf_button = QPushButton('GGUF wählen')
@@ -219,13 +251,20 @@ class Window(QMainWindow):
         model_actions.addWidget(self.download_button)
         model_actions.addWidget(self.local_load_button)
         local_row.addLayout(model_actions)
+        self.projector = QLineEdit(str(self.store.value('llama_projector', '')))
+        self.projector.setPlaceholderText('Optionaler Vision-Projektor (mmproj.gguf)')
+        self.projector_button = QPushButton('Projektor wählen')
+        projector_row = QHBoxLayout()
+        projector_row.addWidget(self.projector, 1)
+        projector_row.addWidget(self.projector_button)
+        local_row.addLayout(projector_row)
         local_row.addWidget(self.autoload)
         self.manage_models = QPushButton('Installierte Modelle verwalten …')
         self.manage_models.clicked.connect(lambda: self.model_manager.open_manager())
         local_row.addWidget(self.manage_models)
         schema_group = QGroupBox('Dateinamen')
         schema_row = QFormLayout(schema_group)
-        settings_layout.addWidget(schema_group)
+        general_layout.addWidget(schema_group)
         self.template = QLineEdit(str(self.store.value('template', '{datum}_{absender}_{dokumenttyp}')))
         self.template.setToolTip('Verfügbare Felder: {datum}, {absender}, {dokumenttyp}, {titel}, {empfaenger}, {kennung}')
         schema_row.addRow('Namensschema', self.template)
@@ -234,7 +273,7 @@ class Window(QMainWindow):
         schema_row.addRow(schema_hint)
         ocr_group = QGroupBox('Texterkennung')
         ocr_row = QFormLayout(ocr_group)
-        settings_layout.addWidget(ocr_group)
+        ocr_layout.addWidget(ocr_group)
         self.ocr_enabled = QCheckBox('OCR für PDF- und Bildscans')
         self.ocr_enabled.setChecked(str(self.store.value('ocr_enabled', 'false')).lower() in {'true', '1'})
         self.ocr_backend = QComboBox()
@@ -269,12 +308,31 @@ class Window(QMainWindow):
         self.inbox_status = QLabel('Nur Import · keine automatische Analyse oder Umbenennung')
         self.inbox_status.setWordWrap(True)
         inbox_layout.addWidget(self.inbox_status)
-        settings_layout.addWidget(inbox_group)
-        settings_layout.addWidget(QLabel('Änderungen werden direkt übernommen und beim Schließen gespeichert.'))
+        inbox_page.addWidget(inbox_group)
+        video_group = QGroupBox('Videoanalyse')
+        video_form = QFormLayout(video_group)
+        self.video_frames = QSpinBox()
+        self.video_frames.setRange(1, 12)
+        self.video_frames.setValue(int(self.store.value('video_frames', 5)))
+        self.video_timeout = QSpinBox()
+        self.video_timeout.setRange(10, 300)
+        self.video_timeout.setSuffix(' s')
+        self.video_timeout.setValue(int(self.store.value('video_timeout', 60)))
+        video_form.addRow('Einzelbilder pro Video', self.video_frames)
+        video_form.addRow('Zeitlimit für Frame-Extraktion', self.video_timeout)
+        video_hint = QLabel('Verteilte Einzelbilder werden mit einem Vision-Modell ausgewertet. '
+                            'Ton wird nicht analysiert. Mehr Frames benötigen mehr Zeit und Arbeitsspeicher. '
+                            'FFmpeg ist in der App enthalten; eine separate Installation ist nicht nötig.')
+        video_hint.setWordWrap(True)
+        video_form.addRow(video_hint)
+        video_layout.addWidget(video_group)
+        for section in (general_layout, ai_layout, video_layout, ocr_layout, inbox_page):
+            section.addStretch()
+        settings_outer.addWidget(QLabel('Änderungen werden direkt übernommen und beim Schließen gespeichert.'))
         buttons = QDialogButtonBox(QDialogButtonBox.StandardButton.Close)
         buttons.button(QDialogButtonBox.StandardButton.Close).setText('Schließen')
         buttons.rejected.connect(self.settings_dialog.close)
-        settings_layout.addWidget(buttons)
+        settings_outer.addWidget(buttons)
         self.settings_dialog.finished.connect(lambda _: self.settings())
         self.ocr_backend.currentIndexChanged.connect(self.update_ocr_controls)
         self.update_ocr_controls()
@@ -338,14 +396,19 @@ class Window(QMainWindow):
         self.undo_button.clicked.connect(self.revert)
         self.all_button.clicked.connect(lambda: self.select_all(True))
         self.none_button.clicked.connect(lambda: self.select_all(False))
-        self.busy_widgets = [self.files_button, self.folder_button, self.recursive, self.clear_button, self.url, self.model, self.connect_button, self.timeout, self.template, self.all_button, self.none_button, self.analyze_button, self.rename_button, self.undo_button, self.ocr_enabled, self.ocr_language, self.ocr_command, self.ocr_backend, self.engine, self.gguf, self.gguf_button, self.download_button, self.local_load_button, self.autoload, self.download_choice, self.inbox_enabled, self.inbox_folder, self.inbox_choose, self.inbox_recursive]
+        self.busy_widgets = [self.files_button, self.folder_button, self.recursive, self.clear_button, self.url, self.model, self.connect_button, self.timeout, self.template, self.all_button, self.none_button, self.analyze_button, self.rename_button, self.undo_button, self.ocr_enabled, self.ocr_language, self.ocr_command, self.ocr_backend, self.engine, self.gguf, self.gguf_button, self.download_button, self.local_load_button, self.autoload, self.download_choice, self.inbox_enabled, self.inbox_folder, self.inbox_choose, self.inbox_recursive, self.projector, self.projector_button, self.video_frames, self.video_timeout]
 
         self.engine.currentIndexChanged.connect(self.engine_changed)
         self.gguf.textChanged.connect(self.model_path_changed)
+        self.projector.textChanged.connect(self.projector_path_changed)
+        self.projector_button.clicked.connect(self.choose_projector)
         self.gguf_button.clicked.connect(self.choose_gguf)
         self.download_button.clicked.connect(lambda: self.start_local_model(download=self.download_choice.currentData()))
         self.download_choice.currentIndexChanged.connect(self.download_model_changed)
         self.local_load_button.clicked.connect(lambda: self.start_local_model())
+        for model in model_catalog():
+            if model.projector and Path(self.gguf.text()).name == model.filename and not self.projector.text():
+                self.projector.setText(str(Path(self.gguf.text()).parent / model.projector.filename))
         self.update_engine_controls()
         self.model_manager = ModelManager(self)
         self.inbox = InboxWatcher(self.busy, self)
@@ -391,13 +454,13 @@ class Window(QMainWindow):
         self.local_group.setVisible(local)
         for widget in (self.url, self.model, self.connect_button):
             widget.setVisible(not local)
-        for widget in (self.gguf, self.gguf_button, self.download_button, self.local_load_button, self.autoload):
+        for widget in (self.gguf, self.gguf_button, self.download_button, self.local_load_button, self.autoload, self.projector, self.projector_button):
             widget.setVisible(local)
         self.privacy_note.setText(
             'Analyse vollständig auf diesem Mac über llama.cpp. Bis zu 16.000 Zeichen je Datei, PDFs maximal 20 Seiten. '
-            'Beim erstmaligen Modelldownload wird Hugging Face kontaktiert. Umbenennung erst nach deinem Klick.'
+            'Bei Videos werden Einzelbilder lokal ausgewertet. Beim erstmaligen Modelldownload wird Hugging Face kontaktiert. Umbenennung erst nach deinem Klick.'
             if local else 'Die Analyse sendet bis zu 16.000 Zeichen je Datei an die eingestellte Ollama-Adresse. PDFs: maximal 20 Seiten. '
-            'Ein vorgeschalteter Router kann Inhalte an Cloud-Anbieter weiterleiten. Umbenennung erst nach deinem Klick.')
+            'Video-Einzelbilder werden ebenfalls an das Backend gesendet. Ein vorgeschalteter Router kann Inhalte an Cloud-Anbieter weiterleiten. Umbenennung erst nach deinem Klick.')
         self.refresh_analysis_enabled()
 
     def refresh_analysis_enabled(self):
@@ -420,11 +483,24 @@ class Window(QMainWindow):
         self.download_choice.setCurrentIndex(index)
         self.download_choice.blockSignals(False)
         self.download_button.setEnabled(not self.busy() and index >= 0)
+        if index >= 0:
+            model = model_catalog()[index]
+            self.projector.setText(str(Path(self.gguf.text()).parent / model.projector.filename) if model.projector else '')
         if self.local_engine.model != Path(self.gguf.text()).expanduser().absolute():
             self._local_backend = None
             if self.engine.currentData() == 'llama':
                 self.status.setText('Modellauswahl geändert · Modell laden anklicken.')
         self.refresh_analysis_enabled()
+
+    def projector_path_changed(self):
+        current = Path(self.projector.text()).expanduser().absolute() if self.projector.text() else None
+        if current != getattr(self.local_engine, 'projector', None):
+            self._local_backend = None
+            self.refresh_analysis_enabled()
+
+    def choose_projector(self):
+        path, _ = QFileDialog.getOpenFileName(self, 'Vision-Projektor auswählen', '', 'GGUF-Projektor (*.gguf)')
+        if path:self.projector.setText(path)
 
     def choose_gguf(self):
         path, _ = QFileDialog.getOpenFileName(self, 'Lokales Modell auswählen', '', 'GGUF-Modelle (*.gguf)')
@@ -454,8 +530,10 @@ class Window(QMainWindow):
 
     def local_model_ready(self, backend, path):
         self.gguf.setText(path)
+        self.projector.setText(str(getattr(self.local_engine, 'projector', '') or ''))
         self._local_backend = backend
         self.store.setValue('llama_model', path)
+        self.store.setValue('llama_projector', self.projector.text())
         self.status.setText('Lokales Modell bereit · ' + Path(path).name)
         self.model_manager.refresh()
 
@@ -471,7 +549,8 @@ class Window(QMainWindow):
                             ocr_enabled=self.ocr_enabled.isChecked(), ocr_language=self.ocr_language.text().strip(),
                             ocr_command=self.ocr_command.text().strip(), ocr_backend=self.ocr_backend.currentData(),
                             engine=self.engine.currentData(), llama_model=self.gguf.text().strip(),
-                            llama_autoload=self.autoload.isChecked())
+                            llama_autoload=self.autoload.isChecked(), llama_projector=self.projector.text().strip(),
+                            video_frames=self.video_frames.value(), video_timeout=self.video_timeout.value())
         for key, value in asdict(settings).items():
             self.store.setValue(key, value)
         return settings
@@ -500,7 +579,7 @@ class Window(QMainWindow):
             event.acceptProposedAction()
 
     def choose_files(self):
-        files, _ = QFileDialog.getOpenFileNames(self, 'Dateien hinzufügen', '', 'Dokumente (*.pdf *.docx *.png *.jpg *.jpeg *.txt *.md *.csv)')
+        files, _ = QFileDialog.getOpenFileNames(self, 'Dateien hinzufügen', '', 'Dokumente (*.pdf *.docx *.png *.jpg *.jpeg *.txt *.md *.csv *.mp4 *.mov *.mkv *.webm *.avi *.m4v *.ts)')
         self.add([Path(f) for f in files])
 
     def choose_folder(self):
@@ -758,6 +837,7 @@ class Window(QMainWindow):
             event.ignore()
         else:
             self.inbox.configure(None)
+            self.preview.shutdown()
             self.model_manager.close()
             self.settings_dialog.close()
             self.local_engine.stop()

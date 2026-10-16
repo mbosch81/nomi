@@ -28,6 +28,16 @@ def run_self_test(app) -> int:
         assert 'Beispiel' in extract_document(docx).text
         from .inbox import inbox_snapshot
         assert docx in inbox_snapshot(root, False)
+        import subprocess
+        from .video import runtime_tool, sample_frames
+        video = root / 'synthetic.avi'
+        subprocess.run([str(runtime_tool('ffmpeg')), '-v', 'error', '-f', 'lavfi',
+                        '-i', 'testsrc=size=320x240:rate=5', '-t', '1', '-c:v', 'mjpeg', str(video)],
+                       check=True, timeout=15)
+        from .preview import load_preview
+        assert not load_preview(video)['image'].isNull()
+        with sample_frames(video, 3) as frames:assert len(frames) == 3
+
         (root / 'preview.txt').write_text('Lokale Textvorschau Beispiel GmbH', encoding='utf-8')
         before = hashlib.sha256(source.read_bytes()).hexdigest()
         document = extract_document(source, settings=Settings(ocr_enabled=True, ocr_language='eng'))
@@ -71,7 +81,7 @@ def run_self_test(app) -> int:
                 window.revert()
                 assert hashlib.sha256(source.read_bytes()).hexdigest() == before
                 assert not target.exists()
-                result.update(ok=True, docx=True, inbox_snapshot=True, preview=True, image_ocr=True, ocr=True, ocr_backend=document.ocr_backend, qt=True, rename=True, undo=True)
+                result.update(ok=True, video_frames=True, docx=True, inbox_snapshot=True, preview=True, image_ocr=True, ocr=True, ocr_backend=document.ocr_backend, qt=True, rename=True, undo=True)
             except Exception as error:
                 result.update(ok=False, error=type(error).__name__)
             timer.stop()

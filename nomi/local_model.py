@@ -24,6 +24,7 @@ class ModelSpec:
     url: str
     sha256: str
     size: int
+    projector: ModelSpec | None = None
 
 
 def model_catalog() -> tuple[ModelSpec, ...]:
@@ -36,6 +37,16 @@ def model_catalog() -> tuple[ModelSpec, ...]:
                   '61fd4167fff3ab01ee1cfe0da183fa27a944db48/Mistral-7B-Instruct-v0.3-Q4_K_M.gguf',
                   '1270d22c0fbb3d092fb725d4d96c457b7b687a5f5a715abe1e818da303e562b6',
                   4372812000),
+        ModelSpec('smolvlm', 'SmolVLM2 2.2B · Vision/Video · 1,7 GB',
+                  'SmolVLM2-2.2B-Instruct-Q4_K_M.gguf',
+                  'https://huggingface.co/ggml-org/SmolVLM2-2.2B-Instruct-GGUF/resolve/'
+                  '1bc3c9f74ceafd4c8d4411cc9cf188bba3798f91/SmolVLM2-2.2B-Instruct-Q4_K_M.gguf',
+                  '0cf76814555b8665149075b74ab6b5c1d428ea1d3d01c1918c12012e8d7c9f58', 1112602656,
+                  ModelSpec('smolvlm-projector', 'SmolVLM2 Vision-Projektor',
+                            'mmproj-SmolVLM2-2.2B-Instruct-Q8_0.gguf',
+                            'https://huggingface.co/ggml-org/SmolVLM2-2.2B-Instruct-GGUF/resolve/'
+                            '1bc3c9f74ceafd4c8d4411cc9cf188bba3798f91/mmproj-SmolVLM2-2.2B-Instruct-Q8_0.gguf',
+                            'ae07ea1facd07dd3230c4483b63e8cda96c6944ad2481f33d531f79e892dd024', 592523200)),
     )
 
 
@@ -43,6 +54,8 @@ def model_spec(key: str) -> ModelSpec:
     for model in model_catalog():
         if model.key == key:
             return model
+        if model.projector and model.projector.key == key:
+            return model.projector
     raise ValueError('Unbekanntes Download-Modell.')
 
 
@@ -129,3 +142,10 @@ def download_model(key: str, destination: Path | None = None, cancelled=lambda: 
     finally:
         if temporary is not None:
             temporary.unlink(missing_ok=True)
+
+
+def download_model_package(key, cancelled=lambda: False, progress=lambda message: None):
+    model = model_spec(key)
+    path = download_model(key, cancelled=cancelled, progress=progress)
+    projector = download_model(model.projector.key, cancelled=cancelled, progress=progress) if model.projector else None
+    return path, projector
