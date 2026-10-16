@@ -368,7 +368,12 @@
       "Originalname ist bereits belegt: ": "Original name is already occupied: ",
       "Dokumente allgemein": "General documents",
       "Fotos": "Photos",
-      "Qwen3 4B · Standard · 2,5 GB": "Qwen3 4B · Default · 2.5 GB"
+      "Qwen3 4B · Standard · 2,5 GB": "Qwen3 4B · Default · 2.5 GB",
+      "Zum Einsortieren bitte zuerst analysieren.": "Analyze the file before organizing it.",
+      "Quelldatei fehlt oder ist ein symbolischer Link.": "Source file is missing or is a symbolic link.",
+      "Datei fehlt oder ist ein symbolischer Link.": "File is missing or is a symbolic link.",
+      "Bild fehlt oder ist ein symbolischer Link.": "Image is missing or is a symbolic link.",
+      "Zeitlimit der Videoverarbeitung erreicht.": "Video processing timed out."
     }
   }
 }

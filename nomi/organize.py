@@ -19,7 +19,7 @@ def destination_for(source, name, metadata, settings):
     root=Path(settings.organize_root).expanduser().absolute()
     template=settings.folder_template
     if not template:return root/name
-    if metadata is None:raise ValueError('Zum Einsortieren bitte zuerst analysieren.')
+    if metadata is None:raise ValueError(tr('Zum Einsortieren bitte zuerst analysieren.'))
     if template.startswith('/') or '\\' in template:raise ValueError(tr('Ordnerschema muss ein relativer Pfad sein.'))
     parts=template.split('/')
     if len(parts)>8 or any(part.strip() in ('','.','..') for part in parts):raise ValueError(tr('Ungültige Ordnerstruktur (maximal 8 Ebenen).'))
@@ -80,7 +80,7 @@ def validate_destination(source,target,root):
     root_fd=open_directory(root)
     try:device=os.fstat(root_fd).st_dev
     finally:os.close(root_fd)
-    if source.is_symlink() or not source.is_file():raise ValueError('Quelldatei fehlt oder ist ein symbolischer Link.')
+    if source.is_symlink() or not source.is_file():raise ValueError(tr('Quelldatei fehlt oder ist ein symbolischer Link.'))
     if source.stat().st_dev!=device:raise ValueError(tr('Ziel muss auf demselben Laufwerk wie die Quelle liegen.'))
     source_fd=open_directory(source.parent);os.close(source_fd)
     parent=target.parent

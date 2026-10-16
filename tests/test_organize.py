@@ -107,7 +107,6 @@ class OrganizeTests(unittest.TestCase):
         with self.assertRaises(ValueError):undo(records)
         self.assertTrue(dest.exists())
 
-@unittest.skipUnless(os.name == 'posix', 'Folder organization is unavailable in Windows preview')
 class OrganizeUITests(unittest.TestCase):
     def test_all_metadata_survives_large_batch(self):
         from PySide6.QtWidgets import QApplication

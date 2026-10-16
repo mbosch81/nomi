@@ -50,3 +50,29 @@ class WindowsFilesTests(unittest.TestCase):
         self.assertFalse(error.exception.records)
         self.assertTrue(self.source.exists());self.assertTrue(second.exists())
         self.assertFalse(list(self.archive.iterdir()))
+
+    def test_failed_source_deletion_removes_only_our_reserved_link(self):
+        from nomi.windows_files import api
+        from types import SimpleNamespace
+        calls=[]
+        def wrapped_api():
+            k=api()
+            def set_info(*args):
+                if args[1]==4:
+                    calls.append(True)
+                    if len(calls)==1:return False
+                return k.SetFileInformationByHandle(*args)
+            return SimpleNamespace(CreateFileW=k.CreateFileW,CloseHandle=k.CloseHandle,SetFileInformationByHandle=set_info)
+        target=self.archive/'new.txt'
+        with patch('nomi.windows_files.api',side_effect=wrapped_api):
+            with self.assertRaises(OSError):secure_move(self.source,target)
+        self.assertEqual(self.source.read_text(),'synthetic data');self.assertFalse(target.exists())
+
+    def test_undo_refuses_modified_or_occupied_files(self):
+        target=self.archive/'new.txt';records=organize_batch([(self.source,target)],self.archive)
+        self.source.write_text('foreign')
+        with self.assertRaises(ValueError):undo(records)
+        self.assertEqual(self.source.read_text(),'foreign');self.assertTrue(target.exists())
+        self.source.unlink();target.write_text('modified')
+        with self.assertRaises(ValueError):undo(records)
+        self.assertEqual(target.read_text(),'modified')

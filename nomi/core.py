@@ -341,7 +341,7 @@ def identity(path: Path):
 def move_no_replace(source: Path, target: Path):
     """Reserve destination atomically via hard link; never overwrite existing data."""
     if source.is_symlink() or not source.is_file():
-        raise ValueError('Quelldatei fehlt oder ist ein symbolischer Link.')
+        raise ValueError(tr('Quelldatei fehlt oder ist ein symbolischer Link.'))
     os.link(source, target)  # Atomic EEXIST protection, same directory/filesystem.
     try:
         source.unlink()

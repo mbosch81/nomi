@@ -1,5 +1,5 @@
 from .i18n import tr
-"""Windows directory guards and atomic, non-replacing moves by file handle.
+"""Windows directory guards and atomic destination reservation and source deletion by handle.
 
 Directory handles deny delete sharing, pinning every ancestor against renames and
 junction substitution until the operation finishes. No copy/delete fallback.
@@ -92,25 +92,33 @@ def validate_destination(source, target, root):
 
 def secure_move(source, target):
     source, target = Path(source).absolute(), Path(target).absolute()
-    with directory_guard(source.parent), directory_guard(target.parent), handle(source, delete=True) as h:
-        if source.stat().st_dev != target.parent.stat().st_dev:
-            raise ValueError(tr('Source and destination must be on the same drive.'))
-        # CreateHardLinkW reserves the target atomically (ERROR_ALREADY_EXISTS).
-        # Delete the opened source link by handle, never a path that could have
-        # been substituted. The source handle denies concurrent writes/deletes.
-        before = source.stat()
-        os.link(source, target, follow_symlinks=False)
+    with directory_guard(source.parent), directory_guard(target.parent):
+        before = None
+        linked = False
         try:
-            linked = target.stat()
-            if (linked.st_dev, linked.st_ino) != (before.st_dev, before.st_ino):
-                raise ValueError(tr('Source changed before the operation.'))
-            delete = W.BOOL(True)
-            if not api().SetFileInformationByHandle(h, 4, C.byref(delete), C.sizeof(delete)):
-                raise C.WinError(C.get_last_error())
+            with handle(source, delete=True) as h:
+                before = source.stat()
+                if before.st_dev != target.parent.stat().st_dev:
+                    raise ValueError(tr('Source and destination must be on the same drive.'))
+                # Reserve atomically before removing the opened source link.
+                os.link(source, target, follow_symlinks=False)
+                linked = True
+                current = target.stat()
+                if (current.st_dev, current.st_ino) != (before.st_dev, before.st_ino):
+                    raise ValueError(tr('Source changed before the operation.'))
+                delete = W.BOOL(True)
+                if not api().SetFileInformationByHandle(h, 4, C.byref(delete), C.sizeof(delete)):
+                    raise C.WinError(C.get_last_error())
         except BaseException:
-            linked = target.stat()
-            if (linked.st_dev, linked.st_ino) == (before.st_dev, before.st_ino):
-                target.unlink()
+            # Close the source handle before opening our target link for delete.
+            # A replacement is never removed; cleanup is itself pinned by handle.
+            if linked:
+                with handle(target, delete=True) as target_handle:
+                    current = target.stat()
+                    if (current.st_dev, current.st_ino) == (before.st_dev, before.st_ino):
+                        delete = W.BOOL(True)
+                        if not api().SetFileInformationByHandle(target_handle, 4, C.byref(delete), C.sizeof(delete)):
+                            raise C.WinError(C.get_last_error())
             raise
 
 

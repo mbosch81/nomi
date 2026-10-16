@@ -2,6 +2,7 @@
 from pathlib import Path
 from tempfile import TemporaryDirectory
 import os
+import sys
 import hashlib
 import json
 from PySide6.QtCore import QSettings, QTimer
@@ -42,13 +43,13 @@ def run_self_test(app) -> int:
         (root / 'preview.txt').write_text('Lokale Textvorschau Beispiel GmbH', encoding='utf-8')
         before = hashlib.sha256(source.read_bytes()).hexdigest()
         document = None
-        if os.name != 'nt':
-            document = extract_document(source, settings=Settings(ocr_enabled=True, ocr_language='eng'))
+        if os.name != 'nt' or '--ocr-self-test' in sys.argv:
+            document = extract_document(source, settings=Settings(ocr_enabled=True, ocr_language='deu+eng' if os.name == 'nt' else 'eng'))
             if not document.used_ocr or 'Beispiel' not in document.text:
                 raise RuntimeError('OCR-Selbsttest fehlgeschlagen.')
             for image_source in (root / 'scan.png', root / 'scan.jpg'):
                 original = image_source.read_bytes()
-                recognized = extract_document(image_source, settings=Settings(ocr_enabled=True, ocr_language='eng'))
+                recognized = extract_document(image_source, settings=Settings(ocr_enabled=True, ocr_language='deu+eng' if os.name == 'nt' else 'eng'))
                 assert recognized.used_ocr and 'Beispiel' in recognized.text
                 assert image_source.read_bytes() == original
         else:

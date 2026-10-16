@@ -217,8 +217,9 @@ standard dialog buttons. Tests cover labels, persisted preferences and placehold
 
 The Windows path guard opens every ancestor with OPEN_REPARSE_POINT and denies
 FILE_SHARE_DELETE. This rejects junctions and pins directories during each move.
-A source handle denies write/delete sharing; SetFileInformationByHandle renames it
-with ReplaceIfExists=false. There is no copy/delete or overwrite fallback. Undo
+A source handle denies write/delete sharing. An atomic hard link reserves the
+destination without replacing an existing entry; the source link is then removed
+by handle using SetFileInformationByHandle. There is no copy or overwrite fallback. Undo
 uses the same primitive; cleanup deletes only matching empty created directories
 by handle. Native Windows tests exercise collision, junction, parent replacement,
 rollback, restoration and empty-folder cleanup. Unsupported filesystems fail

@@ -34,7 +34,7 @@ def run_tool(args, cancelled, deadline):
     try:
         while True:
             if cancelled():raise AnalysisCancelled()
-            if time.monotonic() >= deadline:raise TimeoutError('Zeitlimit der Videoverarbeitung erreicht.')
+            if time.monotonic() >= deadline:raise TimeoutError(tr('Zeitlimit der Videoverarbeitung erreicht.'))
             try:
                 output, _ = process.communicate(timeout=.1)
                 break

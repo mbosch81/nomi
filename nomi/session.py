@@ -1,3 +1,4 @@
+from .i18n import tr
 """Bounded session-only results. No document data is written to disk."""
 from collections import OrderedDict
 from dataclasses import asdict
@@ -8,7 +9,7 @@ from pathlib import Path
 
 def file_identity(path):
     path=Path(path)
-    if path.is_symlink() or not path.is_file():raise ValueError('Datei fehlt oder ist ein symbolischer Link.')
+    if path.is_symlink() or not path.is_file():raise ValueError(tr('Datei fehlt oder ist ein symbolischer Link.'))
     stat=path.stat()
     # NTFS may coalesce timestamps for rapid same-size rewrites. Small documents
     # get a bounded content fingerprint; large media retain the cheap stat check

@@ -17,7 +17,7 @@ IMAGE_PROMPT = ('Describe this image for a short concrete filename. Return JSON 
 def encode_image(path: Path, cancelled=lambda:False):
     if cancelled():raise AnalysisCancelled()
     path = Path(path)
-    if path.is_symlink() or not path.is_file():raise ValueError('Bild fehlt oder ist ein symbolischer Link.')
+    if path.is_symlink() or not path.is_file():raise ValueError(tr('Bild fehlt oder ist ein symbolischer Link.'))
     if path.stat().st_size > 100*1024*1024:raise ValueError(tr('Bild ist zu groß (maximal 100 MB).'))
     reader = QImageReader(str(path))
     reader.setAutoTransform(True)

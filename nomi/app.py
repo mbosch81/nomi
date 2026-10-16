@@ -584,7 +584,7 @@ class Window(QMainWindow):
         QTimer.singleShot(0, self.auto_load)
 
     def choose_inbox(self):
-        folder = QFileDialog.getExistingDirectory(self, tr('Eingangsordner wählen'))
+        folder = QFileDialog.getExistingDirectory(self, tr('Eingangsordner wählen'), options=QFileDialog.Option.DontUseNativeDialog)
         if folder:
             self.inbox_folder.setText(folder)
             self.configure_inbox()
@@ -662,11 +662,11 @@ class Window(QMainWindow):
             self.refresh_analysis_enabled()
 
     def choose_projector(self):
-        path, _ = QFileDialog.getOpenFileName(self, tr('Vision-Projektor auswählen'), '', tr('GGUF-Projektor (*.gguf)'))
+        path, _ = QFileDialog.getOpenFileName(self, tr('Vision-Projektor auswählen'), '', tr('GGUF-Projektor (*.gguf)'), options=QFileDialog.Option.DontUseNativeDialog)
         if path:self.projector.setText(path)
 
     def choose_gguf(self):
-        path, _ = QFileDialog.getOpenFileName(self, tr('Lokales Modell auswählen'), '', tr('GGUF-Modelle (*.gguf)'))
+        path, _ = QFileDialog.getOpenFileName(self, tr('Lokales Modell auswählen'), '', tr('GGUF-Modelle (*.gguf)'), options=QFileDialog.Option.DontUseNativeDialog)
         if path:
             self.gguf.setText(path)
 
@@ -724,7 +724,7 @@ class Window(QMainWindow):
         self.ocr_command_label.setVisible(show_command)
 
     def choose_organize_root(self):
-        folder=QFileDialog.getExistingDirectory(self,tr('Zielordner für Einsortieren wählen'))
+        folder=QFileDialog.getExistingDirectory(self,tr('Zielordner für Einsortieren wählen'), options=QFileDialog.Option.DontUseNativeDialog)
         if folder:self.organize_root.setText(folder)
 
     def apply_naming_preset(self):
@@ -790,11 +790,11 @@ class Window(QMainWindow):
             event.acceptProposedAction()
 
     def choose_files(self):
-        files, _ = QFileDialog.getOpenFileNames(self, tr('Dateien hinzufügen'), '', tr('Dokumente (*.pdf *.docx *.png *.jpg *.jpeg *.txt *.md *.csv *.mp4 *.mov *.mkv *.webm *.avi *.m4v *.ts)'))
+        files, _ = QFileDialog.getOpenFileNames(self, tr('Dateien hinzufügen'), '', tr('Dokumente (*.pdf *.docx *.png *.jpg *.jpeg *.txt *.md *.csv *.mp4 *.mov *.mkv *.webm *.avi *.m4v *.ts)'), options=QFileDialog.Option.DontUseNativeDialog)
         self.add([Path(f) for f in files])
 
     def choose_folder(self):
-        folder = QFileDialog.getExistingDirectory(self, tr('Ordner auswählen'))
+        folder = QFileDialog.getExistingDirectory(self, tr('Ordner auswählen'), options=QFileDialog.Option.DontUseNativeDialog)
         if folder:
             self.add([Path(folder)])
 
@@ -1179,7 +1179,7 @@ def main():
     if '--llama-self-test' in sys.argv:
         from .diagnostics import run_llama_self_test
         sys.exit(run_llama_self_test(app))
-    if '--self-test' in sys.argv:
+    if '--self-test' in sys.argv or '--ocr-self-test' in sys.argv:
         from .diagnostics import run_self_test
         sys.exit(run_self_test(app))
     window = Window()
