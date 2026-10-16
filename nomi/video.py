@@ -91,10 +91,11 @@ def sample_frames(path, count=5, timeout=60, cancelled=lambda:False):
         yield frames
 
 
-def suggest_video(backend, path, settings, cancelled):
+def suggest_video(backend, path, settings, cancelled, frames_ready=None):
     if not getattr(backend, 'supports_images', False):
         raise ValueError('Videoanalyse benötigt ein Vision-Modell. In KI SmolVLM2 herunterladen und laden oder ein Ollama-Vision-Modell auswählen.')
     with sample_frames(path, settings.video_frames, settings.video_timeout, cancelled) as frames:
         if cancelled():raise AnalysisCancelled()
         metadata = backend.suggest_images(frames, settings)
+        if not cancelled() and frames_ready:frames_ready(frames)
     return metadata

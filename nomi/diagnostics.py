@@ -75,7 +75,9 @@ def run_self_test(app) -> int:
                     window.preview.show_path(preview_paths[preview_index[0]])
                     return
                 timer.stop()
-                window.rename()
+                window.review_rename()
+                assert source.exists() and window.rename_review.confirm.isEnabled()
+                window.rename_review.accept()
                 target = root / 'Beispiel_GmbH_Rechnung.pdf'
                 assert target.exists() and not source.exists()
                 window.revert()
@@ -124,7 +126,7 @@ def run_llama_self_test(app) -> int:
         image.close()
         before = hashlib.sha256(source.read_bytes()).hexdigest()
         store = QSettings(str(root / 'settings.ini'), QSettings.Format.IniFormat)
-        for key, value in {'engine': 'llama', 'llama_model': str(model), 'ocr_enabled': True}.items():
+        for key, value in {'engine': 'llama', 'llama_model': str(model), 'ocr_enabled': True, 'auto_models': False, 'image_analysis': 'ocr', 'image_template': '{datum}_{absender}_{dokumenttyp}'}.items():
             store.setValue(key, value)
         started = time.monotonic()
         window = Window(store=store)

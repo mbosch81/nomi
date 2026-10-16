@@ -25,11 +25,11 @@ py -3.14 -m venv .venv
 
 ## Verwendung
 
-1. **Lokal · llama.cpp** verwenden: in den Einstellungen **Qwen3 4B** oder **Mistral 7B Instruct v0.3** auswählen und **Ausgewähltes Modell herunterladen / laden** anklicken oder eine vorhandene GGUF-Datei auswählen. Danach **Modell laden**; mit **Beim Start laden** lädt Nomi die gewählte Datei künftig automatisch im Hintergrund.
+1. **Lokal · llama.cpp** verwenden: Seit 0.9.0 wählt Nomi standardmäßig das Modell passend zum Dateityp und lädt fehlende Modelle bei der ersten Analyse. Unter KI das Textmodell wählen; Bilder/Videos verwenden SmolVLM2. Für manuelle Modellauswahl die automatische Auswahl ausschalten. Im manuellen Modus: in den Einstellungen **Qwen3 4B** oder **Mistral 7B Instruct v0.3** auswählen und **Ausgewähltes Modell herunterladen / laden** anklicken oder eine vorhandene GGUF-Datei auswählen. Danach **Modell laden**; mit **Beim Start laden** lädt Nomi die gewählte Datei künftig automatisch im Hintergrund.
 2. Alternativ **Ollama · Server** wählen, Adresse eintragen und **Modelle laden** anklicken oder einen Modellnamen eingeben. Unterstützt werden `/api/tags` und `/api/chat` mit strukturierten JSON-Ausgaben. Der Server-Port muss bekannt sein; Nomi errät ihn nicht.
 3. Dateien/Ordner hineinziehen oder über den Dateidialog auswählen. Unterordner sind optional. Symbolische Links werden nicht importiert.
 4. Ausgewählte Dateien analysieren. Namensvorschläge prüfen, bearbeiten und unerwünschte Dateien per Checkbox abwählen.
-5. **Auswahl umbenennen**. Umbenennungsaktionen können während derselben Sitzung schrittweise rückgängig gemacht werden.
+5. **Auswahl umbenennen** öffnet eine Übersicht. Erst **Jetzt umbenennen** führt die geprüfte Auswahl aus. Umbenennungsaktionen können während derselben Sitzung schrittweise rückgängig gemacht werden.
 
 ## Lokale KI mit llama.cpp
 
@@ -224,3 +224,18 @@ PNG, JPG und JPEG lassen sich auch ohne enthaltenen Text analysieren: Motive, Ob
 - **Nur Text erkennen (OCR)**: Vorhandene OCR-Verarbeitung für Dokument-Scans, unabhängig vom geladenen Vision-Modell.
 
 Unter KI SmolVLM2 herunterladen/laden und im Namensschema `{titel}` verwenden, beispielsweise `{dokumenttyp}_{titel}`. Für die Vision-Auswertung ist keine OCR erforderlich. Bilder werden im Arbeitsspeicher auf maximal 1024 × 1024 Pixel vorbereitet, gedreht und bei Transparenz auf Weiß gesetzt. Über 100 MB oder 48 Megapixel große Bilder werden abgewiesen. Originale und Metadaten werden nicht geändert; lediglich der Dateiname ändert sich nach ausdrücklichem Klick. Datumsangaben werden bei reiner Vision-Auswertung konservativ weggelassen. Die Erkennung kann Inhalte oder Details falsch beschreiben; Vorschläge vor dem Umbenennen prüfen. Bei lokalem llama.cpp bleiben Bilder lokal, bei Ollama werden die vorbereiteten Bilder an die konfigurierte Adresse gesendet.
+
+
+### Gemischte Stapel und Prüfschritte (0.9.0)
+
+**Automatische lokale Modellwahl:** Unter KI ist die automatische Auswahl für llama.cpp standardmäßig aktiv. Dokumente verwenden wahlweise Qwen3 4B oder Mistral 7B; Bilder und Videos verwenden SmolVLM2 samt Projektor. Bilder im Modus „Nur Text erkennen“ verwenden OCR und das Textmodell. Fehlende Katalogmodelle werden erst beim Analysieren heruntergeladen, vorhandene Dateien wiederverwendet. Laden und Wechsel laufen im Worker mit Fortschrittsanzeige und Abbruch; nur ein Modell bleibt gleichzeitig geladen. Für eigene GGUFs oder manuelle Kontrolle die automatische Auswahl ausschalten. Bei Ollama bleibt das konfigurierte Servermodell maßgeblich.
+
+**Getrennte Namensvorlagen:** Unter Allgemein gibt es Dokumente, Bilder (Standard `{titel}`) und Videos (Standard `Video_{titel}`). Das vorhandene Dokumentenschema bleibt erhalten. Die Vorlagen gelten bei beiden Backends; PNG/JPEG verwenden auch im OCR-Modus die Bildvorlage. Ein leerer Eintrag für Bilder/Video verwendet das Dokumentenschema. Ungültige Platzhalter werden vor Beginn abgewiesen.
+
+**Erneut analysieren:** Die über Checkboxen markierten Dateien können mit „Erneut analysieren …“ unabhängig vom Sitzungsspeicher neu ausgewertet werden. Ein optionaler Hinweis (maximal 500 Zeichen) gilt nur für diesen Durchlauf, etwa „kürzer benennen“. Er wird dem gewählten Backend übergeben, nicht dauerhaft gespeichert und nicht als Beleg für Datumsangaben verwendet. Abbrechen des Hinweisdialogs startet keine Analyse.
+
+**Ausgewertete Video-Frames:** Nach einer erfolgreichen Analyse zeigt die Vorschau die tatsächlich an das Modell übergebenen Frames mit Zeitpositionen. Anklicken zeigt den gewählten Frame größer. Vor der Analyse bleibt die einzelne lokale Vorschau verfügbar. Diese Stichproben werden nur begrenzt im Sitzungsspeicher gehalten; nach dessen Verdrängung bleibt die normale Vorschau verfügbar.
+
+**Umbenennungsübersicht:** „Auswahl umbenennen“ zeigt alter Name → neuer Name für die komplette ausgewählte Aktion. Konflikte, fehlende Namen und seit der Analyse veränderte Quellen blockieren die Bestätigung. Fehlende Metadaten werden als Hinweis hervorgehoben, unveränderte Namen gekennzeichnet. „Zurück“ verändert nichts. „Jetzt umbenennen“ führt ausschließlich den geprüften Stapel aus; später vom Eingangsordner importierte Dateien werden nicht ungeprüft mit umbenannt. Vor der Ausführung wird erneut geprüft, und die bestehenden atomaren Regeln gegen Überschreiben sowie Rückgängig bleiben aktiv.
+
+**Wiedererkennen innerhalb der Sitzung:** Erneuter Import oder Analyse unveränderter Dateien übernimmt den letzten erfolgreichen Vorschlag, einschließlich manueller Korrekturen. Wiederverwendung verlangt denselben Pfad, dieselbe Dateiidentität, Größe, Änderungs-/Metadatenzeit und dieselben Analyse-Einstellungen. Neue Hinweise werden durch ausdrückliche erneute Analyse wirksam. Eigene Umbenennungen und Rückgängig übertragen die Ergebnisse auf den neuen beziehungsweise ursprünglichen Pfad. Fehlgeschlagene oder abgebrochene Analysen werden nicht als neue Ergebnisse gespeichert. Der Speicher hält höchstens 64 Ergebnisse und 32 MiB kodierte Frames; ältere Einträge werden verdrängt. Es wird keine Historie auf Festplatte angelegt. Beim Beenden endet die Sitzung.

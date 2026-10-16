@@ -1,10 +1,10 @@
 from __future__ import annotations
 import sys
 from pathlib import Path
-from dataclasses import asdict
+from dataclasses import asdict, replace
 from PySide6.QtCore import Qt, QThread, Signal, QSettings, QTimer
 from PySide6.QtGui import QAction, QKeySequence
-from PySide6.QtWidgets import (QApplication, QMainWindow, QWidget, QVBoxLayout, QHBoxLayout, QLabel, QPushButton, QTableWidget, QTableWidgetItem, QHeaderView, QFileDialog, QCheckBox, QLineEdit, QComboBox, QSpinBox, QProgressBar, QMessageBox, QDialog, QDialogButtonBox, QGroupBox, QFormLayout, QSplitter, QScrollArea, QListWidget, QStackedWidget)
+from PySide6.QtWidgets import (QApplication, QMainWindow, QWidget, QVBoxLayout, QHBoxLayout, QLabel, QPushButton, QTableWidget, QTableWidgetItem, QHeaderView, QFileDialog, QCheckBox, QLineEdit, QComboBox, QSpinBox, QProgressBar, QMessageBox, QDialog, QDialogButtonBox, QGroupBox, QFormLayout, QSplitter, QScrollArea, QListWidget, QStackedWidget, QInputDialog)
 from .preview import PreviewPanel
 from .model_manager import ModelManager
 from .inbox import InboxWatcher
@@ -16,11 +16,15 @@ class Worker(QThread):
     result = Signal(int, str, str)
     models_ready = Signal(list)
     problem = Signal(str)
-    def __init__(self, settings, items=None, backend=None):
+    progress = Signal(str)
+    details = Signal(int, object)
+    def __init__(self, settings, items=None, backend=None, router=None, cache=None, force=False):
         super().__init__()
         self.settings, self.items = settings, items
         self.cancelled = False
         self.backend = backend
+        self.router = router
+        self.cache, self.force = cache, force
     def requestInterruption(self):
         self.cancelled = True
         super().requestInterruption()
@@ -38,6 +42,18 @@ class Worker(QThread):
             if self.isInterruptionRequested():
                 break
             try:
+                from .session import file_identity
+                identity = file_identity(path)
+                cached = self.cache.get(path, self.settings) if self.cache is not None and not self.force else None
+                if cached is not None:
+                    name = available_name(path, cached['name'], reserved.setdefault(path.parent, set()))
+                    detail = dict(cached, name=name)
+                    self.cache.put(identity, self.settings, detail)
+                    self.details.emit(row, detail)
+                    self.result.emit(row, name, cached['status'] + ' · Aus Sitzung übernommen')
+                    continue
+                frames = []
+                if self.router:backend = self.router.backend_for(path)
                 is_video = path.suffix.lower() in VIDEO_FORMATS
                 is_visual_image = path.suffix.lower() in IMAGE_FORMATS and (self.settings.image_analysis == 'vision' or
                     (self.settings.image_analysis == 'auto' and self.settings.engine == 'llama' and getattr(backend, 'supports_images', False)))
@@ -49,14 +65,15 @@ class Worker(QThread):
                 elif is_video:
                     from .video import suggest_video
                     from .core import Extraction
-                    metadata = suggest_video(backend, path, self.settings, self.isInterruptionRequested)
+                    metadata = suggest_video(backend, path, self.settings, self.isInterruptionRequested, frames.extend)
                     document = Extraction('')
                 else:
                     document = extract_document(path, settings=self.settings, cancelled=self.isInterruptionRequested)
                     if self.isInterruptionRequested():break
                     metadata = backend.suggest(document.text, self.settings)
                 if self.isInterruptionRequested():break
-                proposed = make_name(metadata, path, self.settings.template)
+                from .routing import naming_template
+                proposed = make_name(metadata, path, naming_template(self.settings, path))
                 name = available_name(path, proposed, reserved.setdefault(path.parent, set()))
                 if name == path.name:
                     status = 'Unverändert'
@@ -75,6 +92,13 @@ class Worker(QThread):
                     status += ' · OCR' + (f' ({document.ocr_backend})' if document.ocr_backend else '')
                 if document.truncated:
                     status += ' · Textausschnitt, bitte prüfen'
+                if file_identity(path) != identity:
+                    raise ValueError('Datei wurde während der Analyse verändert. Bitte erneut analysieren.')
+                from string import Formatter
+                missing = [field for _,field,_,_ in Formatter().parse(naming_template(self.settings,path)) if field and not metadata.get(field)]
+                detail = dict(name=name, status=status, frames=frames, identity=identity, settings=self.settings, missing_fields=missing)
+                if self.cache is not None:self.cache.put(identity, self.settings, detail)
+                self.details.emit(row, detail)
                 self.result.emit(row, name, status)
             except AnalysisCancelled:
                 break
@@ -128,6 +152,10 @@ class Window(QMainWindow):
         self.paths = []
         self.worker = None
         self.history = []
+        from .session import SessionResults
+        self.session_results = SessionResults()
+        self.analysis_details = {}
+        self.analysis_identities = {}
         self.local_engine = LocalEngine()
         self._local_backend = None
         self._close_pending = False
@@ -233,6 +261,18 @@ class Window(QMainWindow):
         self.local_group = QGroupBox('Lokales GGUF-Modell')
         local_row = QVBoxLayout(self.local_group)
         ai_layout.addWidget(self.local_group)
+        self.auto_models = QCheckBox('Modell passend zur Datei automatisch wählen')
+        self.auto_models.setChecked(str(self.store.value('auto_models', 'true')).lower() in {'true', '1'})
+        local_row.addWidget(self.auto_models)
+        self.text_model = QComboBox()
+        for spec in model_catalog():
+            if not spec.projector:self.text_model.addItem(spec.label, spec.key)
+        self.text_model.setCurrentIndex(max(0, self.text_model.findData(str(self.store.value('text_model', 'qwen')))))
+        local_row.addWidget(QLabel('Dokumentmodell für automatische Auswahl'))
+        local_row.addWidget(self.text_model)
+        routing_hint = QLabel('Dokumente: Qwen oder Mistral · Bilder/Videos: SmolVLM2. Fehlende Modelle werden beim Analysieren heruntergeladen. Es bleibt jeweils nur ein Modell geladen. Für eigene GGUFs automatische Auswahl ausschalten.')
+        routing_hint.setWordWrap(True)
+        local_row.addWidget(routing_hint)
         self.gguf = QLineEdit(str(self.store.value('llama_model', str(default_model_path()))))
         self.gguf.setPlaceholderText('GGUF-Modell auswählen')
         self.gguf_button = QPushButton('GGUF wählen')
@@ -276,7 +316,11 @@ class Window(QMainWindow):
         general_layout.addWidget(schema_group)
         self.template = QLineEdit(str(self.store.value('template', '{datum}_{absender}_{dokumenttyp}')))
         self.template.setToolTip('Verfügbare Felder: {datum}, {absender}, {dokumenttyp}, {titel}, {empfaenger}, {kennung}')
-        schema_row.addRow('Namensschema', self.template)
+        schema_row.addRow('Dokumente', self.template)
+        self.image_template = QLineEdit(str(self.store.value('image_template', '{titel}')))
+        self.video_template = QLineEdit(str(self.store.value('video_template', 'Video_{titel}')))
+        schema_row.addRow('Bilder', self.image_template)
+        schema_row.addRow('Videos', self.video_template)
         schema_hint = QLabel('{datum}, {absender}, {dokumenttyp}, {titel}, {empfaenger}, {kennung}')
         schema_hint.setWordWrap(True)
         schema_row.addRow(schema_hint)
@@ -397,13 +441,15 @@ class Window(QMainWindow):
         self.all_button = QPushButton('Alle auswählen')
         self.none_button = QPushButton('Alle abwählen')
         self.analyze_button = QPushButton('Auswahl analysieren')
+        self.reanalyze_button = QPushButton('Erneut analysieren …')
+        self.reanalyze_button.setToolTip('Markierte Dateien erneut analysieren · optional mit Hinweis')
         self.cancel_button = QPushButton('Abbrechen')
         self.cancel_button.setEnabled(False)
         self.rename_button = QPushButton('Auswahl umbenennen')
         self.rename_button.setStyleSheet('background: #6677dd; color: white; font-weight: 600;')
         self.undo_button = QPushButton('Rückgängig')
         self.undo_button.setEnabled(False)
-        for widget in (self.all_button, self.none_button, self.analyze_button, self.cancel_button, self.rename_button, self.undo_button):
+        for widget in (self.all_button, self.none_button, self.analyze_button, self.reanalyze_button, self.cancel_button, self.rename_button, self.undo_button):
             actions.addWidget(widget)
         layout.addLayout(actions)
         self.progress = QProgressBar()
@@ -415,14 +461,16 @@ class Window(QMainWindow):
         self.folder_button.clicked.connect(self.choose_folder)
         self.clear_button.clicked.connect(self.clear)
         self.connect_button.clicked.connect(self.load_models)
-        self.analyze_button.clicked.connect(self.analyze)
+        self.analyze_button.clicked.connect(lambda: self.analyze())
+        self.reanalyze_button.clicked.connect(self.reanalyze)
         self.cancel_button.clicked.connect(self.cancel)
-        self.rename_button.clicked.connect(self.rename)
+        self.rename_button.clicked.connect(self.review_rename)
         self.undo_button.clicked.connect(self.revert)
         self.all_button.clicked.connect(lambda: self.select_all(True))
         self.none_button.clicked.connect(lambda: self.select_all(False))
-        self.busy_widgets = [self.files_button, self.folder_button, self.recursive, self.clear_button, self.url, self.model, self.connect_button, self.timeout, self.template, self.all_button, self.none_button, self.analyze_button, self.rename_button, self.undo_button, self.ocr_enabled, self.ocr_language, self.ocr_command, self.ocr_backend, self.engine, self.gguf, self.gguf_button, self.download_button, self.local_load_button, self.autoload, self.download_choice, self.inbox_enabled, self.inbox_folder, self.inbox_choose, self.inbox_recursive, self.projector, self.projector_button, self.video_frames, self.video_timeout, self.image_analysis]
+        self.busy_widgets = [self.files_button, self.folder_button, self.recursive, self.clear_button, self.url, self.model, self.connect_button, self.timeout, self.template, self.all_button, self.none_button, self.analyze_button, self.reanalyze_button, self.rename_button, self.undo_button, self.ocr_enabled, self.ocr_language, self.ocr_command, self.ocr_backend, self.engine, self.gguf, self.gguf_button, self.download_button, self.local_load_button, self.autoload, self.download_choice, self.inbox_enabled, self.inbox_folder, self.inbox_choose, self.inbox_recursive, self.projector, self.projector_button, self.video_frames, self.video_timeout, self.image_analysis, self.auto_models, self.text_model, self.image_template, self.video_template]
 
+        self.auto_models.toggled.connect(self.refresh_analysis_enabled)
         self.engine.currentIndexChanged.connect(self.engine_changed)
         self.gguf.textChanged.connect(self.model_path_changed)
         self.projector.textChanged.connect(self.projector_path_changed)
@@ -489,8 +537,9 @@ class Window(QMainWindow):
         self.refresh_analysis_enabled()
 
     def refresh_analysis_enabled(self):
-        ready = self.engine.currentData() != 'llama' or (self._local_backend is not None and self.local_engine.alive())
+        ready = self.engine.currentData() != 'llama' or self.auto_models.isChecked() or (self._local_backend is not None and self.local_engine.alive() and self.local_engine.model == Path(self.gguf.text()).expanduser().absolute())
         self.analyze_button.setEnabled(not self.busy() and ready)
+        self.reanalyze_button.setEnabled(not self.busy() and ready)
 
     def engine_changed(self):
         if self.engine.currentData() != 'llama':
@@ -537,10 +586,27 @@ class Window(QMainWindow):
             return
         if not self.autoload.isChecked():
             self.status.setText('Lokales Modell noch nicht geladen · Modell laden anklicken.')
+        elif self.auto_models.isChecked():
+            from .local_model import model_spec
+            path = model_directory() / model_spec(self.text_model.currentData()).filename
+            if not path.is_file():
+                self.status.setText('Automatische Modellwahl bereit · fehlende Modelle werden beim Analysieren geladen.')
+                return
+            self._local_backend = None
+            self.progress.setRange(0, 0)
+            worker = EngineWorker(self.local_engine, replace(self.settings(), llama_model=str(path), llama_projector=''))
+            worker.progress.connect(self.status.setText)
+            worker.ready.connect(self.automatic_model_ready)
+            self.start(worker)
         elif Path(self.gguf.text()).expanduser().is_file():
             self.start_local_model()
         else:
             self.status.setText('Lokales Modell fehlt · GGUF auswählen oder ein angebotenes Modell herunterladen.')
+
+    def automatic_model_ready(self, backend, path):
+        self._local_backend = backend
+        self.status.setText('Automatische Modellwahl · bereit mit ' + Path(path).name)
+        self.model_manager.refresh()
 
     def start_local_model(self, download=False):
         if self.busy():
@@ -576,7 +642,9 @@ class Window(QMainWindow):
                             engine=self.engine.currentData(), llama_model=self.gguf.text().strip(),
                             llama_autoload=self.autoload.isChecked(), llama_projector=self.projector.text().strip(),
                             video_frames=self.video_frames.value(), video_timeout=self.video_timeout.value(),
-                            image_analysis=self.image_analysis.currentData())
+                            image_analysis=self.image_analysis.currentData(), auto_models=self.auto_models.isChecked(),
+                            text_model=self.text_model.currentData(), image_template=self.image_template.text().strip(),
+                            video_template=self.video_template.text().strip())
         for key, value in asdict(settings).items():
             self.store.setValue(key, value)
         return settings
@@ -630,7 +698,10 @@ class Window(QMainWindow):
             check.setFlags(Qt.ItemFlag.ItemIsEnabled | Qt.ItemFlag.ItemIsUserCheckable)
             check.setCheckState(Qt.CheckState.Checked)
             self.table.setItem(row, 0, check)
-            for col, text in ((1, path.name), (2, ''), (3, 'Noch nicht analysiert')):
+            cached = self.session_results.get(path, self.settings())
+            if cached:self.remember_analysis(row, cached)
+            for col, text in ((1, path.name), (2, cached['name'] if cached else ''),
+                              (3, 'Aus Sitzung übernommen · Vorschlag prüfen' if cached else 'Noch nicht analysiert')):
                 item = QTableWidgetItem(text)
                 if col != 2:
                     item.setFlags(Qt.ItemFlag.ItemIsEnabled | Qt.ItemFlag.ItemIsSelectable)
@@ -639,6 +710,7 @@ class Window(QMainWindow):
         self.table.blockSignals(False)
         if self.paths and self.table.currentRow() < 0:
             self.table.setCurrentCell(0, 1)
+        self.check_conflicts()
         self.status.setText(f'{len(self.paths)} Dateien · Keine Dateien wurden verändert.')
 
     def edit_preview_name(self, name):
@@ -650,6 +722,8 @@ class Window(QMainWindow):
         row = self.table.currentRow()
         self.preview.show_path(self.paths[row] if 0 <= row < len(self.paths) else None)
         if 0 <= row < len(self.paths):
+            detail = self.analysis_details.get(self.paths[row], {})
+            self.preview.set_analysis_frames(detail.get('frames', []))
             self.preview.name.setText(self.table.item(row, 2).text())
             self.preview.name.setEnabled(not self.busy())
 
@@ -671,6 +745,10 @@ class Window(QMainWindow):
             if item.row() == self.table.currentRow():
                 self.preview.name.setText(item.text())
             self.table.item(item.row(), 3).setText('Manuell bearbeitet — wird beim Umbenennen geprüft')
+            path = self.paths[item.row()]
+            detail = self.analysis_details.get(path)
+            if detail:
+                self.session_results.edit(path, detail['settings'], item.text(), 'Manuell bearbeitet')
         if item.column() in (0, 2):
             self.check_conflicts()
 
@@ -723,15 +801,25 @@ class Window(QMainWindow):
             self.model.setCurrentIndex(0)
         self.status.setText(f'{len(names)} Modelle gefunden.' if names else 'Verbindung erfolgreich, aber keine Modelle gefunden.')
 
-    def analyze(self):
+    def reanalyze(self):
+        if self.busy():return
+        if not self.selected():
+            self.error('Bitte mindestens eine Datei auswählen.')
+            return
+        hint, accepted = QInputDialog.getText(self, 'Erneut analysieren',
+            'Optionaler Hinweis für die markierten Dateien (z. B. kürzer benennen, Ort hervorheben):')
+        if accepted:self.analyze(force=True, hint=hint[:500])
+
+    def analyze(self, force=False, hint=''):
         items = self.selected()
         if not items:
             self.error('Bitte mindestens eine Datei auswählen.')
             return
-        settings = self.settings()
+        settings = replace(self.settings(), analysis_hint=hint)
         try:
-            validate_template(settings.template)
-            if settings.engine == 'llama' and (self._local_backend is None or not self.local_engine.alive()):
+            for template in (settings.template, settings.image_template, settings.video_template):
+                validate_template(template or settings.template)
+            if settings.engine == 'llama' and not settings.auto_models and (self._local_backend is None or not self.local_engine.alive()):
                 raise ValueError('Bitte zuerst das lokale Modell laden.')
             if settings.engine == 'ollama' and not settings.model:
                 raise ValueError('Bitte zuerst ein Modell auswählen oder eingeben.')
@@ -743,11 +831,28 @@ class Window(QMainWindow):
         for row, _ in items:
             self.table.item(row, 3).setText('Wartet auf Analyse …')
         self.status.setText('Analysiert ausgewählte Dateien nacheinander …')
-        worker = Worker(settings, items, self._local_backend if settings.engine == 'llama' else None)
+        from .routing import LocalModelRouter
+        router = LocalModelRouter(self.local_engine, settings, lambda: self.worker.isInterruptionRequested(), self.status.setText) if settings.engine == 'llama' and settings.auto_models else None
+        worker = Worker(settings, items, self._local_backend if settings.engine == 'llama' else None, router, self.session_results, force)
+        worker.details.connect(self.remember_analysis)
+        if router:router.progress = worker.progress.emit
+        worker.progress.connect(self.status.setText)
         worker.result.connect(self.result)
         self.start(worker)
 
+    def remember_analysis(self, row, detail):
+        path = self.paths[row]
+        self.analysis_identities[path] = detail['identity']
+        self.analysis_details.pop(path, None)
+        self.analysis_details[path] = detail
+        while self.analysis_details and (len(self.analysis_details)>64 or sum(sum(len(encoded) for _,encoded in entry.get('frames', [])) for entry in self.analysis_details.values())>32*1024*1024):
+            del self.analysis_details[next(iter(self.analysis_details))]
+        if row == self.table.currentRow():self.preview.set_analysis_frames(detail.get('frames', []))
+
     def result(self, row, name, status):
+        if not name:
+            self.analysis_details.pop(self.paths[row], None)
+            if row == self.table.currentRow():self.preview.show_path(self.paths[row])
         self.table.blockSignals(True)
         self.table.item(row, 2).setText(name)
         self.table.item(row, 3).setText(status)
@@ -766,6 +871,8 @@ class Window(QMainWindow):
 
     def finished(self):
         interrupted = self.worker.cancelled
+        if getattr(self.worker, 'router', None):
+            self._local_backend = self.local_engine.backend
         if self.worker.items is not None:
             for row, _ in self.worker.items:
                 if self.table.item(row, 3).text() == 'Wartet auf Analyse …':
@@ -786,14 +893,44 @@ class Window(QMainWindow):
         if self._close_pending:
             QTimer.singleShot(0, self.close)
 
-    def rename(self):
-        selected = self.selected()
+    def review_rename(self):
+        if self.busy():return
+        from .rename_review import review_plan, RenameReview
+        items=[]
+        for row,path in self.selected():
+            status=self.table.item(row,3).text()
+            missing=self.analysis_details.get(path,{}).get('missing_fields',[])
+            if missing:status += ' · Fehlende Angaben: '+', '.join(missing)
+            items.append((path,self.table.item(row,2).text(),status))
+        if not items:
+            self.error('Bitte mindestens eine Datei auswählen.')
+            return
+        rows=review_plan(items,self.analysis_identities)
+        self.rename_review = RenameReview(rows,self)
+        approved=tuple((row,path,self.table.item(row,2).text()) for row,path in self.selected())
+        self.rename_review.accepted.connect(lambda: self.rename(approved))
+        self.rename_review.open()
+
+    def rename(self, approved=None):
+        if self.busy():return
+        if approved is not None:
+            if any(row >= len(self.paths) or self.paths[row] != path or self.table.item(row,2).text() != name for row,path,name in approved):
+                self.error('Die geprüfte Auswahl hat sich verändert. Bitte erneut prüfen.')
+                return
+            selected=[(row,path) for row,path,name in approved]
+        else:
+            selected = self.selected()
         if not selected:
             self.error('Bitte mindestens eine Datei auswählen.')
             return
         items = [(path, self.table.item(row, 2).text()) for row, path in selected]
         if any(not name for _, name in items):
             self.error('Für jede ausgewählte Datei muss ein neuer Name vorliegen. Dateien ohne Vorschlag bitte abwählen.')
+            return
+        from .rename_review import review_plan
+        problems=[problem for row in review_plan([(path,name,'') for path,name in items],self.analysis_identities) for problem in row['problems']]
+        if problems:
+            self.error('; '.join(dict.fromkeys(problems)))
             return
         failure = None
         try:
@@ -813,9 +950,24 @@ class Window(QMainWindow):
             self.table.item(row, 1).setText(self.paths[row].name)
             self.table.item(row, 1).setToolTip(str(self.paths[row]))
             self.table.item(row, 3).setText('Umbenannt' if path in mapping else 'Unverändert')
+        for record in records:self.remap_analysis(record.before, record.after)
         self.update_preview()
         self.undo_button.setEnabled(bool(self.history))
         self.status.setText(('Aktion fehlgeschlagen · ' + failure) if failure else f'{len(records)} Dateien umbenannt · Rückgängig ist in dieser Sitzung möglich.')
+
+    def remap_analysis(self, before, after):
+        from .session import file_identity
+        detail = self.analysis_details.pop(before, None)
+        self.analysis_identities.pop(before, None)
+        self.session_results.forget(before)
+        if detail:
+            try:
+                identity = file_identity(after)
+                detail = dict(detail, identity=identity)
+                self.analysis_details[after] = detail
+                self.analysis_identities[after] = identity
+                self.session_results.put(identity, detail['settings'], detail)
+            except (ValueError, OSError):pass
 
     def revert(self):
         if not self.history:
@@ -837,6 +989,7 @@ class Window(QMainWindow):
             return
         else:
             self.history.pop()
+        for record in records:self.remap_analysis(record.after, record.before)
         mapping = {r.after: r.before for r in records}
         for row, path in enumerate(self.paths):
             if path in mapping:

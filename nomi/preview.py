@@ -1,7 +1,7 @@
 """Read-only local previews, loaded in a separate worker without OCR or network."""
 from pathlib import Path
 from PySide6.QtCore import QObject, QRunnable, QThreadPool, Signal, Qt, QSize
-from PySide6.QtGui import QImage, QImageReader, QPixmap
+from PySide6.QtGui import QImage, QImageReader, QPixmap, QIcon
 from PySide6.QtWidgets import (QWidget, QVBoxLayout, QHBoxLayout, QLabel, QPushButton,
                               QPlainTextEdit, QScrollArea, QStackedWidget, QComboBox, QLineEdit)
 
@@ -98,6 +98,7 @@ class PreviewPanel(QWidget):
 
     def __init__(self, parent=None):
         super().__init__(parent)
+        self._sample_frames = []
         self.path = None
         self.page = 0
         self.pages = 0
@@ -130,6 +131,14 @@ class PreviewPanel(QWidget):
         self.zoom.setAccessibleName('Vorschau-Zoom')
         self.zoom.currentIndexChanged.connect(self._fit_image)
         layout.addWidget(self.zoom)
+        self.frame_bar = QScrollArea()
+        self.frame_bar.setWidgetResizable(True)
+        self.frame_bar.setFixedHeight(120)
+        self.frame_widget = QWidget()
+        self.frame_layout = QHBoxLayout(self.frame_widget)
+        self.frame_bar.setWidget(self.frame_widget)
+        self.frame_bar.hide()
+        layout.addWidget(self.frame_bar)
         self.stack = QStackedWidget()
         self.message = QLabel('Datei in der Liste auswählen.')
         self.message.setWordWrap(True)
@@ -161,6 +170,7 @@ class PreviewPanel(QWidget):
         self.counter.setText(f'Seite {self.page + 1} / {self.pages}' if self.pages else '')
 
     def show_path(self, path, page=0):
+        self.set_analysis_frames([])
         self._request += 1
         old_path = self.path
         self.path = Path(path) if path else None
@@ -210,8 +220,35 @@ class PreviewPanel(QWidget):
                     self._image = data['image']
                     self.stack.setCurrentWidget(self.scroll)
                     self._fit_image()
+                    if data.get('video') and self._sample_frames:self.show_analysis_frame(0)
         self._start_pending()
         self._navigation()
+
+    def set_analysis_frames(self, frames):
+        import base64
+        self._sample_frames = frames
+        while self.frame_layout.count():
+            item=self.frame_layout.takeAt(0)
+            if item.widget():item.widget().deleteLater()
+        self.frame_bar.setVisible(bool(frames))
+        for index,(timestamp,encoded) in enumerate(frames):
+            image=QImage.fromData(base64.b64decode(encoded),'JPEG')
+            button=QPushButton(f'{int(timestamp)//60:02d}:{timestamp%60:05.2f}')
+            button.setIcon(QIcon(QPixmap.fromImage(image)))
+            button.setIconSize(QSize(96,64))
+            button.setToolTip(f'Ausgewerteter Frame {index+1} · {timestamp:.2f} Sekunden')
+            button.clicked.connect(lambda checked=False,i=index:self.show_analysis_frame(i))
+            self.frame_layout.addWidget(button)
+        if frames:self.show_analysis_frame(0)
+
+    def show_analysis_frame(self, index):
+        import base64
+        if not 0<=index<len(self._sample_frames):return
+        timestamp,encoded=self._sample_frames[index]
+        self._image=QImage.fromData(base64.b64decode(encoded),'JPEG')
+        self.stack.setCurrentWidget(self.scroll)
+        self._fit_image()
+        self.note.setText(f'Ausgewertete Stichprobe · Frame {index+1}/{len(self._sample_frames)} · {timestamp:.2f} s · ohne Ton')
 
     def shutdown(self):
         self._request += 1
